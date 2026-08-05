@@ -3,313 +3,689 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Workflow Planner — Dashboard SaaS</title>
+    <title>Smart Workflow Planner — Solution Entreprise</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         :root {
-            --primary: #2c3e50;
-            --accent: #3498db;
-            --success: #2ecc71;
-            --bg: #f4f7f6;
-            --card-bg: #ffffff;
+            --primary: #1e293b;
+            --primary-dark: #0f172a;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #334155;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            
+            /* Status Colors */
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --info: #3b82f6;
+            --success: #10b981;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             margin: 0;
-            padding: 0;
             background-color: var(--bg);
-            color: #333;
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
 
+        /* HEADER & NAVBAR */
         header {
             background-color: var(--primary);
             color: white;
-            padding: 20px 40px;
+            padding: 0 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            height: 70px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
 
-        header h1 {
-            margin: 0;
-            font-size: 1.5rem;
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
         }
 
-        .api-badge {
-            background-color: var(--accent);
+        .logo i { color: var(--accent); }
+
+        .nav-links {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .btn-api {
+            background: rgba(255, 255, 255, 0.1);
             color: white;
-            padding: 6px 12px;
-            border-radius: 4px;
+            padding: 8px 16px;
+            border-radius: 6px;
             text-decoration: none;
             font-size: 0.85rem;
-            font-weight: bold;
+            font-weight: 600;
+            transition: background 0.2s;
         }
 
+        .btn-api:hover { background: rgba(255, 255, 255, 0.2); }
+
+        /* TABS NAVIGATION */
+        .tabs-bar {
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 0 2rem;
+            display: flex;
+            gap: 10px;
+        }
+
+        .tab-btn {
+            padding: 16px 20px;
+            border: none;
+            background: none;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .tab-btn:hover { color: var(--accent); }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        /* MAIN CONTENT CONTAINER */
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 30px auto;
-            padding: 0 20px;
+            padding: 0 2rem;
+            flex: 1;
+            width: 100%;
+            box-sizing: border-box;
         }
 
-        .grid {
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* CARDS & FORMS */
+        .grid-2 {
             display: grid;
-            grid-template-columns: 1fr 2fr;
-            gap: 20px;
+            grid-template-columns: 350px 1fr;
+            gap: 25px;
         }
 
         .card {
-            background: var(--card-bg);
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 24px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 25px;
         }
 
         .card h2 {
             margin-top: 0;
+            font-size: 1.1rem;
             color: var(--primary);
-            font-size: 1.2rem;
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
-        .form-group {
-            margin-bottom: 15px;
-        }
+        .form-group { margin-bottom: 16px; }
 
         label {
             display: block;
-            margin-bottom: 5px;
+            font-size: 0.85rem;
             font-weight: 600;
-            font-size: 0.9rem;
+            margin-bottom: 6px;
+            color: var(--text);
         }
 
-        input, select {
+        input, select, textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 5px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
             box-sizing: border-box;
-            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
         }
 
-        button {
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--accent);
+        }
+
+        .btn-primary {
             background-color: var(--accent);
             color: white;
             border: none;
-            padding: 10px 18px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: bold;
+            padding: 12px 20px;
+            border-radius: 6px;
+            font-weight: 600;
             width: 100%;
-            font-size: 0.95rem;
+            cursor: pointer;
             transition: background 0.2s;
         }
 
-        button:hover {
-            background-color: #2980b9;
+        .btn-primary:hover { background-color: var(--accent-hover); }
+
+        /* HORIZONTAL MATRIX / TABLE VIEW */
+        .table-responsive {
+            overflow-x: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: white;
         }
 
-        .task-list, .dept-list {
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            color: var(--text);
+            padding: 14px 18px;
+            font-weight: 700;
+            border-bottom: 1px solid var(--border);
+        }
+
+        td {
+            padding: 14px 18px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: middle;
+        }
+
+        /* PROGRESS BAR WITH DYNAMIC COLOR CODING */
+        .progress-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .progress-bar-bg {
+            flex: 1;
+            height: 10px;
+            background-color: #e2e8f0;
+            border-radius: 20px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            border-radius: 20px;
+            transition: width 0.4s ease, background-color 0.4s ease;
+        }
+
+        /* DYNAMIC STATUS BADGES */
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge-danger { background: #fee2e2; color: #b91c1c; }
+        .badge-warning { background: #fef3c7; color: #b45309; }
+        .badge-info { background: #dbeafe; color: #1d4ed8; }
+        .badge-success { background: #dcfce7; color: #15803d; }
+
+        /* DELIVERABLES TAGS */
+        .deliverable-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        /* FOOTER INSTITUTIONNEL */
+        footer {
+            background-color: var(--primary-dark);
+            color: #94a3b8;
+            padding: 40px 2rem 20px;
+            margin-top: auto;
+            border-top: 1px solid #334155;
+            font-size: 0.85rem;
+        }
+
+        .footer-grid {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 40px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #334155;
+        }
+
+        .footer-col h4 {
+            color: white;
+            font-size: 0.95rem;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+
+        .footer-col ul {
             list-style: none;
             padding: 0;
             margin: 0;
         }
 
-        .task-item {
-            background: #fafafa;
-            border: 1px solid #eee;
-            padding: 15px;
-            border-radius: 6px;
-            margin-bottom: 10px;
+        .footer-col ul li { margin-bottom: 10px; }
+
+        .footer-col ul li a {
+            color: #94a3b8;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .footer-col ul li a:hover { color: white; }
+
+        .footer-bottom {
+            max-width: 1400px;
+            margin: 20px auto 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-
-        .progress-bar-bg {
-            background: #e0e0e0;
-            border-radius: 10px;
-            height: 12px;
-            width: 150px;
-            overflow: hidden;
-            margin-top: 5px;
-        }
-
-        .progress-bar-fill {
-            background: var(--success);
-            height: 100%;
-            width: 0%;
-            transition: width 0.3s;
-        }
-
-        .tag {
-            background: #e1f5fe;
-            color: #0288d1;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: bold;
+            color: #64748b;
         }
     </style>
 </head>
 <body>
 
+    <!-- NAVBAR HEADER -->
     <header>
-        <h1>Smart Workflow Planner</h1>
-        <a href="https://smart-workflow-planner-api.onrender.com/docs" target="_blank" class="api-badge">Documentation API Swagger ↗</a>
+        <div class="logo">
+            <i class="fa-solid fa-diagram-project"></i>
+            <span>Smart Workflow Planner</span>
+        </div>
+        <div class="nav-links">
+            <a href="https://smart-workflow-planner-api.onrender.com/docs" target="_blank" class="btn-api">
+                <i class="fa-solid fa-code"></i> API Docs (Swagger)
+            </a>
+            <a href="admin.html" class="btn-api" style="background: var(--accent);">
+                <i class="fa-solid fa-user-shield"></i> Console Admin
+            </a>
+        </div>
     </header>
 
-    <div class="container">
-        <div class="grid">
-            
-            <!-- Colonne de Gauche : Formulaires -->
-            <div>
-                <!-- Formulaire Département -->
-                <div class="card">
-                    <h2>Nouveau Département</h2>
-                    <form id="deptForm">
-                        <div class="form-group">
-                            <label for="deptName">Nom du Département</label>
-                            <input type="text" id="deptName" placeholder="ex: IT & Développements" required>
-                        </div>
-                        <button type="submit">Créer le Département</button>
-                    </form>
-                </div>
-
-                <!-- Formulaire Tâche -->
-                <div class="card">
-                    <h2>Nouvelle Tâche</h2>
-                    <form id="taskForm">
-                        <div class="form-group">
-                            <label for="taskTitle">Intitulé de la Tâche</label>
-                            <input type="text" id="taskTitle" placeholder="ex: Audit sécurité API" required>
-                        </div>
-                        <div class="form-group">
-                            <label for="taskDept">Département Attribué</label>
-                            <select id="taskDept" required>
-                                <option value="">-- Sélectionner un département --</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="taskProgress">Avancement (%)</label>
-                            <input type="number" id="taskProgress" min="0" max="100" value="0" required>
-                        </div>
-                        <button type="submit">Ajouter la Tâche</button>
-                    </form>
-                </div>
-            </div>
-
-            <!-- Colonne de Droite : Vue d'Ensemble des Activités -->
-            <div>
-                <div class="card">
-                    <h2>Tableau de Bord des Tâches & Avancements</h2>
-                    <div id="loading" style="display:none;">Chargement des données...</div>
-                    <div id="taskList" class="task-list"></div>
-                </div>
-            </div>
-
-        </div>
+    <!-- NAVIGATION PAR ONGLETS -->
+    <div class="tabs-bar">
+        <button class="tab-btn active" onclick="switchTab('dashboard')">
+            <i class="fa-solid fa-chart-pie"></i> Tableau de Bord Récapitulatif
+        </button>
+        <button class="tab-btn" onclick="switchTab('daily')">
+            <i class="fa-solid fa-calendar-day"></i> Tâches Quotidiennes
+        </button>
+        <button class="tab-btn" onclick="switchTab('weekly')">
+            <i class="fa-solid fa-calendar-week"></i> Planification Hebdomadaire
+        </button>
+        <button class="tab-btn" onclick="switchTab('eval')">
+            <i class="fa-solid fa-clipboard-check"></i> Évaluation & Livrables
+        </button>
     </div>
+
+    <!-- MAIN CONTAINER -->
+    <div class="container">
+
+        <!-- TAB 1 : DASHBOARD RÉCAPITULATIF & CREATION -->
+        <div id="dashboard" class="tab-content active">
+            <div class="grid-2">
+                <!-- PANNEAU DE CONFIGURATION -->
+                <div>
+                    <div class="card">
+                        <h2><i class="fa-solid fa-building-user"></i> Nouveau Département</h2>
+                        <form id="deptForm">
+                            <div class="form-group">
+                                <label for="deptName">Nom de l'Unité / Département</label>
+                                <input type="text" id="deptName" placeholder="ex: Direction Financière" required>
+                            </div>
+                            <button type="submit" class="btn-primary">Créer le Département</button>
+                        </form>
+                    </div>
+
+                    <div class="card">
+                        <h2><i class="fa-solid fa-list-check"></i> Créer une Tâche</h2>
+                        <form id="taskForm">
+                            <div class="form-group">
+                                <label for="taskTitle">Intitulé de la Tâche</label>
+                                <input type="text" id="taskTitle" placeholder="ex: Audit trimestriel des comptes" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="taskDept">Département Assigné</label>
+                                <select id="taskDept" required>
+                                    <option value="">-- Sélectionner --</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="taskDeliverable">Livrable Attendu</label>
+                                <input type="text" id="taskDeliverable" placeholder="ex: Rapport PDF signé + Feuille Excel">
+                            </div>
+                            <div class="form-group">
+                                <label for="taskProgress">Avancement Actuel (%)</label>
+                                <input type="number" id="taskProgress" min="0" max="100" value="0" required>
+                            </div>
+                            <button type="submit" class="btn-primary">Enregistrer la Tâche</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- TABLEAU MATRICIEL PRINCIPAL -->
+                <div>
+                    <div class="card">
+                        <h2><i class="fa-solid fa-table-columns"></i> Matrice Générale des Activités par Département</h2>
+                        <div class="table-responsive">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Département / Tâche</th>
+                                        <th>Livrable Attendu</th>
+                                        <th>Progression</th>
+                                        <th>Statut</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mainTaskTable">
+                                    <tr><td colspan="4" style="text-align: center; color: var(--text-muted);">Chargement de la matrice...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 2 : TÂCHES QUOTIDIENNES -->
+        <div id="daily" class="tab-content">
+            <div class="card">
+                <h2><i class="fa-solid fa-calendar-day"></i> Suivi des Tâches Quotidiennes</h2>
+                <p style="color: var(--text-muted);">Visualisation des activités prioritaires de la journée par unité opérationnelle.</p>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Priorité</th>
+                                <th>Tâche Quotidienne</th>
+                                <th>Département</th>
+                                <th>Avancement</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dailyTaskTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 3 : PLANIFICATION HEBDOMADAIRE -->
+        <div id="weekly" class="tab-content">
+            <div class="card">
+                <h2><i class="fa-solid fa-calendar-week"></i> Planning Hebdomadaire des Livrables</h2>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Semaine</th>
+                                <th>Tâche</th>
+                                <th>Livrable Cible</th>
+                                <th>Avancement</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weeklyTaskTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4 : ÉVALUATION DES ACTIVITÉS -->
+        <div id="eval" class="tab-content">
+            <div class="card">
+                <h2><i class="fa-solid fa-clipboard-check"></i> Évaluation & Validation des Performance</h2>
+                <p style="color: var(--text-muted);">Contrôle de conformité des livrables par rapport aux objectifs fixés.</p>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Tâche</th>
+                                <th>Livrables Soumis</th>
+                                <th>Taux de Réalisation</th>
+                                <th>Appréciation</th>
+                            </tr>
+                        </thead>
+                        <tbody id="evalTaskTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- FOOTER INSTITUTIONNEL PRO -->
+    <footer>
+        <div class="footer-grid">
+            <div class="footer-col">
+                <div class="logo" style="margin-bottom: 12px; color: white;">
+                    <i class="fa-solid fa-diagram-project"></i> Smart Workflow Planner
+                </div>
+                <p>Plateforme B2B de planification intelligente, d'optimisation des flux de travail et d'évaluation des livrables opérationnels pour entreprises et organisations.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Plateforme</h4>
+                <ul>
+                    <li><a href="#">Tableau de Bord</a></li>
+                    <li><a href="#">Module d'Évaluation</a></li>
+                    <li><a href="#">Sécurité & Conformité</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Solutions B2B</h4>
+                <ul>
+                    <li><a href="#">Gouvernance d'Entreprise</a></li>
+                    <li><a href="#">Suivi des Livrables</a></li>
+                    <li><a href="#">Intégration API</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Support & Légal</h4>
+                <ul>
+                    <li><a href="https://smart-workflow-planner-api.onrender.com/docs" target="_blank">Documentation API</a></li>
+                    <li><a href="#">Politique de Confidentialité</a></li>
+                    <li><a href="#">Conditions d'Utilisation</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div>&copy; 2026 Smart Workflow Planner Inc. Tous droits réservés.</div>
+            <div>Infrastructure : Vercel Edge • API Render • PostgreSQL Serverless</div>
+        </div>
+    </footer>
 
     <script>
         const API_URL = "https://smart-workflow-planner-api.onrender.com";
 
-        // Initialisation
+        // GESTION DES ONGLETS
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+        }
+
+        // COULEURS DYNAMIQUES ET BADGES
+        function getStatusInfo(progress) {
+            if (progress === 0) {
+                return { color: 'var(--danger)', badgeClass: 'badge-danger', label: 'Non Démarré' };
+            } else if (progress < 50) {
+                return { color: 'var(--warning)', badgeClass: 'badge-warning', label: 'En Cours (Initial)' };
+            } else if (progress < 100) {
+                return { color: 'var(--info)', badgeClass: 'badge-info', label: 'En Phase Finale' };
+            } else {
+                return { color: 'var(--success)', badgeClass: 'badge-success', label: 'Livrable Validé' };
+            }
+        }
+
+        // INITIALISATION
         document.addEventListener("DOMContentLoaded", () => {
             loadDepartments();
-            loadTasks();
+            loadAllData();
         });
 
-        // Charger les départements
+        // CHARGEMENT DES DEPARTEMENTS
         async function loadDepartments() {
             try {
                 const res = await fetch(`${API_URL}/departments/`);
                 const depts = await res.json();
-                
                 const select = document.getElementById("taskDept");
                 select.innerHTML = '<option value="">-- Sélectionner un département --</option>';
                 
                 depts.forEach(d => {
-                    const option = document.createElement("option");
-                    option.value = d.id;
-                    option.textContent = d.name;
-                    select.appendChild(option);
+                    const opt = document.createElement("option");
+                    opt.value = d.id;
+                    opt.textContent = d.name;
+                    select.appendChild(opt);
                 });
-            } catch (err) {
-                console.error("Erreur lors du chargement des départements :", err);
+            } catch (e) {
+                console.error("Erreur départements:", e);
             }
         }
 
-        // Charger les tâches
-        async function loadTasks() {
+        // CHARGEMENT DES DONNÉES DANS TOUS LES ONGLETS
+        async function loadAllData() {
             try {
                 const res = await fetch(`${API_URL}/tasks/`);
                 const tasks = await res.json();
-                
-                const taskList = document.getElementById("taskList");
-                taskList.innerHTML = "";
+
+                const mainTbody = document.getElementById("mainTaskTable");
+                const dailyTbody = document.getElementById("dailyTaskTable");
+                const weeklyTbody = document.getElementById("weeklyTaskTable");
+                const evalTbody = document.getElementById("evalTaskTable");
+
+                mainTbody.innerHTML = "";
+                dailyTbody.innerHTML = "";
+                weeklyTbody.innerHTML = "";
+                evalTbody.innerHTML = "";
 
                 if (tasks.length === 0) {
-                    taskList.innerHTML = "<p>Aucune tâche enregistrée pour le moment.</p>";
+                    mainTbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">Aucune tâche configurée.</td></tr>';
                     return;
                 }
 
                 tasks.forEach(t => {
-                    const item = document.createElement("div");
-                    item.className = "task-item";
-                    item.innerHTML = `
-                        <div>
-                            <strong>${t.title}</strong>
-                            <div class="progress-bar-bg">
-                                <div class="progress-bar-fill" style="width: ${t.progress}%"></div>
-                            </div>
-                        </div>
-                        <div style="text-align: right;">
-                            <span class="tag">${t.progress}% complété</span>
-                        </div>
+                    const status = getStatusInfo(t.progress);
+                    const deliverableText = t.deliverable || "Document de synthèse / Validation chef de projet";
+
+                    // 1. Remplissage Matrice Principale
+                    mainTbody.innerHTML += `
+                        <tr>
+                            <td><strong>${t.title}</strong></td>
+                            <td><span class="deliverable-tag"><i class="fa-solid fa-file-contract"></i> ${deliverableText}</span></td>
+                            <td>
+                                <div class="progress-wrapper">
+                                    <div class="progress-bar-bg">
+                                        <div class="progress-bar-fill" style="width: ${t.progress}%; background-color: ${status.color};"></div>
+                                    </div>
+                                    <span style="font-weight:700; font-size:0.85rem;">${t.progress}%</span>
+                                </div>
+                            </td>
+                            <td><span class="status-badge ${status.badgeClass}">${status.label}</span></td>
+                        </tr>
                     `;
-                    taskList.appendChild(item);
+
+                    // 2. Remplissage Quotidien
+                    dailyTbody.innerHTML += `
+                        <tr>
+                            <td><span class="status-badge badge-info">P1</span></td>
+                            <td><strong>${t.title}</strong></td>
+                            <td>Département de rattachement</td>
+                            <td><span class="status-badge ${status.badgeClass}">${t.progress}%</span></td>
+                        </tr>
+                    `;
+
+                    // 3. Remplissage Hebdomadaire
+                    weeklyTbody.innerHTML += `
+                        <tr>
+                            <td>Semaine En Cours</td>
+                            <td><strong>${t.title}</strong></td>
+                            <td>${deliverableText}</td>
+                            <td><strong>${t.progress}%</strong></td>
+                        </tr>
+                    `;
+
+                    // 4. Remplissage Évaluation
+                    evalTbody.innerHTML += `
+                        <tr>
+                            <td><strong>${t.title}</strong></td>
+                            <td>${deliverableText}</td>
+                            <td>${t.progress}% complet</td>
+                            <td><span class="status-badge ${status.badgeClass}">${status.label}</span></td>
+                        </tr>
+                    `;
                 });
-            } catch (err) {
-                console.error("Erreur lors du chargement des tâches :", err);
+
+            } catch (e) {
+                console.error("Erreur chargement tâches:", e);
             }
         }
 
-        // Créer un département
+        // ENREGISTREMENT DEPARTEMENT
         document.getElementById("deptForm").addEventListener("submit", async (e) => {
             e.preventDefault();
             const name = document.getElementById("deptName").value;
-
             await fetch(`${API_URL}/departments/`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ name })
             });
-
             document.getElementById("deptName").value = "";
             loadDepartments();
         });
 
-        // Créer une tâche
+        // ENREGISTREMENT TÂCHE
         document.getElementById("taskForm").addEventListener("submit", async (e) => {
             e.preventDefault();
             const title = document.getElementById("taskTitle").value;
             const department_id = parseInt(document.getElementById("taskDept").value);
             const progress = parseFloat(document.getElementById("taskProgress").value);
+            const deliverable = document.getElementById("taskDeliverable").value;
 
             await fetch(`${API_URL}/tasks/`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ title, department_id, progress })
+                body: JSON.stringify({ title, department_id, progress, deliverable })
             });
 
             document.getElementById("taskTitle").value = "";
+            document.getElementById("taskDeliverable").value = "";
             document.getElementById("taskProgress").value = "0";
-            loadTasks();
+            loadAllData();
         });
     </script>
+</body>
+</html>
 
 </body>
 </html>
