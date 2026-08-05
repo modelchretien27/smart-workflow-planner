@@ -337,11 +337,9 @@
         </div>
     </header>
 
+    <!-- BARRE D'ONGLETS RÉORDONNÉE : ANALYTICS TOUT À DROITE -->
     <div class="tabs-bar">
-        <button class="tab-btn active" onclick="switchTab('analytics', event)">
-            <i class="fa-solid fa-chart-pie"></i> Tableau de Bord Analytics
-        </button>
-        <button class="tab-btn" onclick="switchTab('management', event)">
+        <button class="tab-btn active" onclick="switchTab('management', event)">
             <i class="fa-solid fa-list-check"></i> Gestion & Matrice
         </button>
         <button class="tab-btn" onclick="switchTab('daily', event)">
@@ -353,51 +351,15 @@
         <button class="tab-btn" onclick="switchTab('eval', event)">
             <i class="fa-solid fa-clipboard-check"></i> Évaluation & Livrables
         </button>
+        <button class="tab-btn" onclick="switchTab('analytics', event)">
+            <i class="fa-solid fa-chart-pie"></i> Tableau de Bord Analytics
+        </button>
     </div>
 
     <div class="container">
 
-        <!-- TAB 1 : TABLEAU DE BORD ANALYTICS SEUL -->
-        <div id="analytics" class="tab-content active">
-            
-            <div class="kpi-grid">
-                <div class="kpi-card" style="border-left: 4px solid var(--accent);">
-                    <div class="kpi-title">Taux de Réalisation Global</div>
-                    <div class="kpi-value" id="kpiAvgProgress">0%</div>
-                </div>
-                <div class="kpi-card" style="border-left: 4px solid var(--success);">
-                    <div class="kpi-title">Livrables Validés (100%)</div>
-                    <div class="kpi-value" id="kpiCompleted">0</div>
-                </div>
-                <div class="kpi-card" style="border-left: 4px solid var(--warning);">
-                    <div class="kpi-title">Tâches en Cours</div>
-                    <div class="kpi-value" id="kpiInProgress">0</div>
-                </div>
-                <div class="kpi-card" style="border-left: 4px solid var(--info);">
-                    <div class="kpi-title">Total Unités / Départements</div>
-                    <div class="kpi-value" id="kpiDepts">0</div>
-                </div>
-            </div>
-
-            <div class="charts-grid">
-                <div class="card">
-                    <h2><i class="fa-solid fa-chart-pie"></i> Répartition des Statuts de Tâches</h2>
-                    <div style="height: 300px; position: relative;">
-                        <canvas id="statusDoughnutChart"></canvas>
-                    </div>
-                </div>
-                <div class="card">
-                    <h2><i class="fa-solid fa-chart-column"></i> Taux d'Avancement par Département (%)</h2>
-                    <div style="height: 300px; position: relative;">
-                        <canvas id="deptBarChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-
-        <!-- TAB 2 : GESTION & MATRICE DE CREATION -->
-        <div id="management" class="tab-content">
+        <!-- TAB 1 : GESTION & MATRICE -->
+        <div id="management" class="tab-content active">
             <div class="grid-2">
                 <div>
                     <div class="card">
@@ -460,7 +422,7 @@
             </div>
         </div>
 
-        <!-- TAB 3 : QUOTIDIEN -->
+        <!-- TAB 2 : QUOTIDIEN -->
         <div id="daily" class="tab-content">
             <div class="card">
                 <h2><i class="fa-solid fa-calendar-day"></i> Suivi des Tâches Quotidiennes</h2>
@@ -480,7 +442,7 @@
             </div>
         </div>
 
-        <!-- TAB 4 : HEBDOMADAIRE -->
+        <!-- TAB 3 : HEBDOMADAIRE -->
         <div id="weekly" class="tab-content">
             <div class="card">
                 <h2><i class="fa-solid fa-calendar-week"></i> Planning Hebdomadaire des Livrables</h2>
@@ -500,7 +462,7 @@
             </div>
         </div>
 
-        <!-- TAB 5 : EVALUATION -->
+        <!-- TAB 4 : EVALUATION -->
         <div id="eval" class="tab-content">
             <div class="card">
                 <h2><i class="fa-solid fa-clipboard-check"></i> Évaluation & Validation des Performances</h2>
@@ -516,6 +478,43 @@
                         </thead>
                         <tbody id="evalTaskTable"></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5 : TABLEAU DE BORD ANALYTICS (DERNIER ONGLET À DROITE) -->
+        <div id="analytics" class="tab-content">
+            <div class="kpi-grid">
+                <div class="kpi-card" style="border-left: 4px solid var(--accent);">
+                    <div class="kpi-title">Taux de Réalisation Global</div>
+                    <div class="kpi-value" id="kpiAvgProgress">0%</div>
+                </div>
+                <div class="kpi-card" style="border-left: 4px solid var(--success);">
+                    <div class="kpi-title">Livrables Validés (100%)</div>
+                    <div class="kpi-value" id="kpiCompleted">0</div>
+                </div>
+                <div class="kpi-card" style="border-left: 4px solid var(--warning);">
+                    <div class="kpi-title">Tâches en Cours</div>
+                    <div class="kpi-value" id="kpiInProgress">0</div>
+                </div>
+                <div class="kpi-card" style="border-left: 4px solid var(--info);">
+                    <div class="kpi-title">Total Unités / Départements</div>
+                    <div class="kpi-value" id="kpiDepts">0</div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="card">
+                    <h2><i class="fa-solid fa-chart-pie"></i> Répartition des Statuts de Tâches</h2>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="statusDoughnutChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h2><i class="fa-solid fa-chart-column"></i> Taux d'Avancement par Département (%)</h2>
+                    <div style="height: 300px; position: relative;">
+                        <canvas id="deptBarChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
