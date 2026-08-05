@@ -58,8 +58,18 @@
 
         .nav-links {
             display: flex;
-            gap: 20px;
+            gap: 15px;
             align-items: center;
+        }
+
+        .user-plan-badge {
+            background: #38bdf8;
+            color: #0f172a;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
         }
 
         .btn-api {
@@ -118,6 +128,129 @@
 
         .tab-content { display: none; }
         .tab-content.active { display: block; }
+
+        /* GRID PRICING */
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .pricing-card {
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 35px 25px;
+            text-align: center;
+            position: relative;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--accent);
+        }
+
+        .pricing-card.popular {
+            border-color: var(--accent);
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.15);
+        }
+
+        .popular-badge {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--accent);
+            color: white;
+            padding: 4px 15px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .price {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: var(--primary);
+            margin: 15px 0;
+        }
+
+        .price span {
+            font-size: 1rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        .features-list {
+            list-style: none;
+            padding: 0;
+            margin: 25px 0;
+            text-align: left;
+            font-size: 0.9rem;
+        }
+
+        .features-list li {
+            padding: 10px 0;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .features-list li i { color: var(--success); }
+
+        .btn-pricing {
+            width: 100%;
+            padding: 12px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.95rem;
+            transition: background 0.2s;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid var(--accent);
+            color: var(--accent);
+        }
+
+        .btn-outline:hover {
+            background: var(--accent);
+            color: white;
+        }
+
+        /* MODAL DE PAIEMENT */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 10000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 450px;
+            width: 100%;
+            position: relative;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 15px; right: 15px;
+            font-size: 1.2rem;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
 
         .kpi-grid {
             display: grid;
@@ -328,6 +461,7 @@
             <span>Smart Workflow Planner</span>
         </div>
         <div class="nav-links">
+            <span class="user-plan-badge" id="currentPlanBadge">Plan Gratuit</span>
             <a href="https://smart-workflow-planner-api.onrender.com/docs" target="_blank" class="btn-api">
                 <i class="fa-solid fa-code"></i> API Docs
             </a>
@@ -337,7 +471,6 @@
         </div>
     </header>
 
-    <!-- BARRE D'ONGLETS RÉORDONNÉE : ANALYTICS TOUT À DROITE -->
     <div class="tabs-bar">
         <button class="tab-btn active" onclick="switchTab('management', event)">
             <i class="fa-solid fa-list-check"></i> Gestion & Matrice
@@ -350,6 +483,9 @@
         </button>
         <button class="tab-btn" onclick="switchTab('eval', event)">
             <i class="fa-solid fa-clipboard-check"></i> Évaluation & Livrables
+        </button>
+        <button class="tab-btn" onclick="switchTab('pricing', event)">
+            <i class="fa-solid fa-gem"></i> Offres & Abonnements
         </button>
         <button class="tab-btn" onclick="switchTab('analytics', event)">
             <i class="fa-solid fa-chart-pie"></i> Tableau de Bord Analytics
@@ -482,7 +618,60 @@
             </div>
         </div>
 
-        <!-- TAB 5 : TABLEAU DE BORD ANALYTICS (DERNIER ONGLET À DROITE) -->
+        <!-- TAB 5 : OFFRES ET ABONNEMENTS B2B -->
+        <div id="pricing" class="tab-content">
+            <div style="text-align: center; max-width: 700px; margin: 0 auto 30px;">
+                <h2 style="font-size: 2rem; color: var(--primary);">Plans de Tarification Transparentes</h2>
+                <p style="color: var(--text-muted);">Choisissez la formule adaptée à la taille de votre organisation et débloquez la puissance analytique.</p>
+            </div>
+
+            <div class="pricing-grid">
+                <!-- PLAN GRATUIT -->
+                <div class="pricing-card">
+                    <h3>Découverte</h3>
+                    <p style="color: var(--text-muted); font-size:0.85rem;">Pour tester la planification</p>
+                    <div class="price">0$ <span>/ mois</span></div>
+                    <ul class="features-list">
+                        <li><i class="fa-solid fa-check"></i> Jusqu'à 3 départements</li>
+                        <li><i class="fa-solid fa-check"></i> 10 tâches maximum</li>
+                        <li><i class="fa-solid fa-check"></i> Matrice générale</li>
+                        <li style="color: #cbd5e1;"><i class="fa-solid fa-xmark" style="color:#cbd5e1;"></i> Analytics avancés (Chart.js)</li>
+                    </ul>
+                    <button class="btn-pricing btn-outline" onclick="selectPlan('Gratuit', 0)">Plan Actuel</button>
+                </div>
+
+                <!-- PLAN PRO -->
+                <div class="pricing-card popular">
+                    <div class="popular-badge">Recommandé B2B</div>
+                    <h3>Business Pro</h3>
+                    <p style="color: var(--text-muted); font-size:0.85rem;">Pour PME & Directions</p>
+                    <div class="price">29$ <span>/ mois</span></div>
+                    <ul class="features-list">
+                        <li><i class="fa-solid fa-check"></i> Départements illimités</li>
+                        <li><i class="fa-solid fa-check"></i> Tâches illimitées</li>
+                        <li><i class="fa-solid fa-check"></i> Graphiques Analytics interactifs</li>
+                        <li><i class="fa-solid fa-check"></i> Suivi des livrables B2B</li>
+                    </ul>
+                    <button class="btn-pricing btn-primary" onclick="openPaymentModal('Business Pro', 29)">Souscrire (29$/mois)</button>
+                </div>
+
+                <!-- PLAN ENTERPRISE -->
+                <div class="pricing-card">
+                    <h3>Entreprise / Gouvernance</h3>
+                    <p style="color: var(--text-muted); font-size:0.85rem;">Grandes Organisations</p>
+                    <div class="price">99$ <span>/ mois</span></div>
+                    <ul class="features-list">
+                        <li><i class="fa-solid fa-check"></i> Tout le Plan Pro inclus</li>
+                        <li><i class="fa-solid fa-check"></i> Accès API REST Illimité</li>
+                        <li><i class="fa-solid fa-check"></i> Support dédié 24/7</li>
+                        <li><i class="fa-solid fa-check"></i> Personnalisation marque blanche</li>
+                    </ul>
+                    <button class="btn-pricing btn-outline" onclick="openPaymentModal('Entreprise', 99)">Contacter les Ventes</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 6 : TABLEAU DE BORD ANALYTICS -->
         <div id="analytics" class="tab-content">
             <div class="kpi-grid">
                 <div class="kpi-card" style="border-left: 4px solid var(--accent);">
@@ -519,6 +708,35 @@
             </div>
         </div>
 
+    </div>
+
+    <!-- MODAL DE PAIEMENT / SOUSCRIPTION -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal" onclick="closePaymentModal()">&times;</span>
+            <h3 style="margin-top:0; color:var(--primary);"><i class="fa-solid fa-credit-card"></i> Souscription Sécurisée</h3>
+            <p style="font-size: 0.9rem; color: var(--text-muted);">Offre sélectionnée : <strong id="modalPlanName" style="color:var(--accent);">--</strong></p>
+            <div style="font-size: 1.8rem; font-weight:800; margin: 15px 0; color: var(--primary);" id="modalPlanPrice">0$</div>
+            
+            <form id="paymentForm">
+                <div class="form-group">
+                    <label>Nom de l'Entreprise</label>
+                    <input type="text" placeholder="ex: Groupe SABC" required>
+                </div>
+                <div class="form-group">
+                    <label>Email Professionnel</label>
+                    <input type="email" placeholder="contact@entreprise.com" required>
+                </div>
+                <div class="form-group">
+                    <label>Moyen de Paiement</label>
+                    <select id="paymentMethod" required>
+                        <option value="card">Carte Bancaire (Visa / Mastercard via Stripe)</option>
+                        <option value="momo">Mobile Money (MTN / Orange Money)</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary" style="margin-top: 10px;">Valider et Activer le Plan</button>
+            </form>
+        </div>
     </div>
 
     <footer>
@@ -566,6 +784,7 @@
         let doughnutChartInstance = null;
         let barChartInstance = null;
         let departmentsMap = {};
+        let activePlan = "Gratuit";
 
         function switchTab(tabId, event) {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -586,6 +805,27 @@
                 return { color: '#10b981', badgeClass: 'badge-success', label: 'Validé' };
             }
         }
+
+        // GESTION DU MODAL ET DES ABONNEMENTS
+        function openPaymentModal(planName, price) {
+            document.getElementById("modalPlanName").textContent = planName;
+            document.getElementById("modalPlanPrice").textContent = `$${price} / mois`;
+            document.getElementById("paymentModal").style.display = "flex";
+            activePlan = planName;
+        }
+
+        function closePaymentModal() {
+            document.getElementById("paymentModal").style.display = "none";
+        }
+
+        document.getElementById("paymentForm").addEventListener("submit", (e) => {
+            e.preventDefault();
+            alert(`Félicitations ! Votre abonnement ${activePlan} est activé avec succès.`);
+            document.getElementById("currentPlanBadge").textContent = `Plan ${activePlan}`;
+            document.getElementById("currentPlanBadge").style.background = "#10b981";
+            document.getElementById("currentPlanBadge").style.color = "white";
+            closePaymentModal();
+        });
 
         document.addEventListener("DOMContentLoaded", async () => {
             await loadDepartments();
