@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, date, timedelta
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Header, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import (
@@ -16,7 +16,7 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 
 # =========================================================================
-# 1. CONFIGURATION
+# 1. CONFIGURATION ET CONNEXION BASE DE DONNEES
 # =========================================================================
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -24,19 +24,21 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_recycle=300)
+# Options de reconnexion SSL robustes pour Neon / Render
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_recycle=300,
+    connect_args={"connect_timeout": 10} if "postgresql" in DATABASE_URL else {}
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-# IMPORTANT (à définir en variables d'environnement sur Render, jamais en dur en prod) :
 SECRET_KEY = os.getenv("SECRET_KEY", "orbitflow-dev-secret-change-me-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 jours
 
-# Clé du FONDATEUR (toi) pour déverrouiller la console admin globale.
-# Change impérativement cette valeur via la variable d'environnement FOUNDER_ADMIN_KEY sur Render.
 FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "changeme-founder-key")
-
 PLAN_PRICES = {"decouverte": 0.0, "business_pro": 29.0, "entreprise": 99.0}
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -70,7 +72,7 @@ class OrganizationDB(Base):
     __tablename__ = "organizations"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    sector = Column(String, default="Autre")          # secteur / type d'entreprise
+    sector = Column(String, default="Autre")
     plan = Column(String, default="decouverte")
     owner_email = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -85,9 +87,9 @@ class UserDB(Base):
     name = Column(String)
     email = Column(String, unique=True, index=True)
     password_hash = Column(String, nullable=True)
-    role = Column(String, default="employe")           # super_admin | superviseur | employe
+    role = Column(String, default="employe")
     organization_id = Column(Integer, ForeignKey("organizations.id"))
-    is_active = Column(Boolean, default=False)          # False tant que l'invitation n'est pas acceptée
+    is_active = Column(Boolean, default=False)
     invite_token = Column(String, unique=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -116,7 +118,7 @@ class TaskDB(Base):
     new_due_date = Column(Date, nullable=True)
     assignee_name = Column(String, nullable=True)
     assignee_email = Column(String, nullable=True)
-    validation_status = Column(String, default="en_cours")  # en_cours | en_attente | valide | rejete
+    validation_status = Column(String, default="en_cours")
     delay_reason = Column(Text, nullable=True)
     validated_by = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -146,16 +148,8 @@ class SubscriptionDB(Base):
 
 Base.metadata.create_all(bind=engine)
 
-# NOTE DE MIGRATION IMPORTANTE :
-# Si ta base existe déjà avec l'ancien schéma (departments/tasks sans les nouvelles colonnes),
-# `create_all` ne modifiera PAS les tables existantes (il ne crée que celles qui manquent).
-# Pour une base de production déjà peuplée, utilise Alembic pour migrer, ou repars d'une base
-# vierge en développement. Sur Neon, le plus simple en phase de test est de supprimer les
-# anciennes tables "departments" et "tasks" puis de relancer l'app pour qu'elle les recrée
-# avec le nouveau schéma.
-
 # =========================================================================
-# 3. APPLICATION FASTAPI
+# 3. APPLICATION FASTAPI & MIDDLEWARES CORS
 # =========================================================================
 app = FastAPI(
     title="OrbitFlow API",
@@ -165,7 +159,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # En production, restreins à ton domaine front-end (Vercel) précis.
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -180,7 +174,7 @@ def get_db():
         db.close()
 
 
-# ------------------------- Dépendances d'authentification -------------------------
+# ------------------------- DEPENDANCES D'AUTHENTIFICATION -------------------------
 def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> UserDB:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentification requise.")
@@ -239,7 +233,7 @@ class TaskUpdate(BaseModel):
 
 
 class TaskValidate(BaseModel):
-    decision: str  # 'valide' | 'rejete'
+    decision: str
     comment: Optional[str] = None
 
 
@@ -259,7 +253,7 @@ class LoginRequest(BaseModel):
 class InviteEntry(BaseModel):
     email: EmailStr
     name: Optional[str] = None
-    role: str = "employe"  # employe | superviseur
+    role: str = "employe"
 
 
 class InviteRequest(BaseModel):
@@ -277,15 +271,14 @@ class FeedbackCreate(BaseModel):
 
 
 class SubscribeRequest(BaseModel):
-    plan: str  # decouverte | business_pro | entreprise
-    payment_method: str  # carte | mobile_money | virement | paypal
+    plan: str
+    payment_method: str
 
 
 class FounderLogin(BaseModel):
     key: str
 
 
-# helpers de sérialisation ----------------------------------------------
 def serialize_user(u: UserDB) -> dict:
     return {
         "id": u.id, "name": u.name, "email": u.email, "role": u.role,
@@ -400,7 +393,7 @@ def invite_members(payload: InviteRequest,
 
 @app.get("/auth/invite/{token}")
 def get_invite(token: str, db: Session = Depends(get_db)):
-    user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()  # noqa: E712
+    user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()
     if not user:
         raise HTTPException(status_code=404, detail="Invitation introuvable ou déjà utilisée.")
     org = db.query(OrganizationDB).filter(OrganizationDB.id == user.organization_id).first()
@@ -409,7 +402,7 @@ def get_invite(token: str, db: Session = Depends(get_db)):
 
 @app.post("/auth/invite/{token}/accept")
 def accept_invite(token: str, payload: AcceptInvite, db: Session = Depends(get_db)):
-    user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()  # noqa: E712
+    user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()
     if not user:
         raise HTTPException(status_code=404, detail="Invitation introuvable ou déjà utilisée.")
     user.name = payload.name or user.name
@@ -433,7 +426,7 @@ def list_team(current_user: UserDB = Depends(get_current_user), db: Session = De
 
 
 # =========================================================================
-# 7. DEPARTEMENTS & TACHES (multi-tenant, protégés)
+# 7. DEPARTEMENTS & TACHES
 # =========================================================================
 @app.post("/departments/")
 def create_department(dept: DepartmentCreate, current_user: UserDB = Depends(get_current_user),
@@ -534,14 +527,11 @@ def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_
         payment_method=payload.payment_method, status="active",
     ))
     db.commit()
-    # NOTE : ceci enregistre l'abonnement en base mais n'encaisse aucun paiement réel.
-    # Pour un encaissement réel, connecte ici Stripe (carte), un agrégateur Mobile Money
-    # (MTN MoMo / Orange Money API), ou une confirmation manuelle de virement bancaire.
     return {"status": "ok", "organization": serialize_org(org)}
 
 
 # =========================================================================
-# 10. CONSOLE FONDATEUR (toi) — vision globale, toutes entreprises confondues
+# 10. CONSOLE FONDATEUR (ADMIN)
 # =========================================================================
 @app.post("/admin/login")
 def admin_login(payload: FounderLogin):
@@ -554,7 +544,7 @@ def admin_login(payload: FounderLogin):
 @app.get("/admin/stats")
 def admin_stats(_: bool = Depends(get_current_founder), db: Session = Depends(get_db)):
     total_orgs = db.query(OrganizationDB).count()
-    total_users = db.query(UserDB).filter(UserDB.is_active == True).count()  # noqa: E712
+    total_users = db.query(UserDB).filter(UserDB.is_active == True).count()
     total_departments = db.query(DepartmentDB).count()
     total_tasks = db.query(TaskDB).count()
 
@@ -607,7 +597,7 @@ def admin_organizations(_: bool = Depends(get_current_founder), db: Session = De
     orgs = db.query(OrganizationDB).all()
     result = []
     for o in orgs:
-        users_count = db.query(UserDB).filter(UserDB.organization_id == o.id, UserDB.is_active == True).count()  # noqa: E712
+        users_count = db.query(UserDB).filter(UserDB.organization_id == o.id, UserDB.is_active == True).count()
         tasks_count = db.query(TaskDB).filter(TaskDB.organization_id == o.id).count()
         result.append({**serialize_org(o), "users_count": users_count, "tasks_count": tasks_count})
     return result
@@ -625,4 +615,3 @@ def admin_feedback(_: bool = Depends(get_current_founder), db: Session = Depends
             "created_at": r.created_at.isoformat() if r.created_at else None,
         })
     return out
-
