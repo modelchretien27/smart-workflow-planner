@@ -1,9 +1,10 @@
 import os
 import uuid
+import hashlib
 from datetime import datetime, date, timedelta
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Response, status
+from fastapi import FastAPI, HTTPException, Depends, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import (
@@ -12,7 +13,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
-from passlib.context import CryptContext
 from jose import jwt, JWTError
 
 # =========================================================================
@@ -41,22 +41,18 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 jours
 FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "changeme-founder-key")
 PLAN_PRICES = {"decouverte": 0.0, "business_pro": 29.0, "entreprise": 99.0}
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-
+# Hachage sécurisé natif (SHA-256 + Sel) pour éviter les incompatibilités passlib/bcrypt
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
-
+    salt = SECRET_KEY[:16]
+    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
 
 def verify_password(password: str, hashed: str) -> bool:
-    return pwd_context.verify(password, hashed)
-
+    return hash_password(password) == hashed
 
 def create_access_token(data: dict, expires_delta: timedelta):
     payload = data.copy()
     payload["exp"] = datetime.utcnow() + expires_delta
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
-
 
 def decode_token(token: str) -> dict:
     try:
