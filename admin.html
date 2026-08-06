@@ -1,255 +1,375 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Console d'Administration Privée — Smart Workflow Planner</title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        :root {
-            --primary: #0f172a;
-            --accent: #2563eb;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --bg: #f8fafc;
-            --card: #ffffff;
-            --border: #e2e8f0;
-            --text: #1e293b;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Console Fondateur — OrbitFlow</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root{
+  --primary:#0c1220; --primary-soft:#141b2e; --primary-line:#232c42;
+  --accent:#2f6feb; --accent-dark:#1f4fc4; --violet:#8457f5;
+  --bg:#f4f6fb; --card:#ffffff; --text:#1c2333; --text-muted:#5b6478; --border:#e4e8f1;
+  --s-green:#12b886; --s-yellow:#f5a524; --s-red:#f0454f; --s-blue:#3b7dfb;
+  --font-display:'Space Grotesk',sans-serif; --font-body:'Inter',sans-serif; --font-mono:'JetBrains Mono',monospace;
+}
+*{box-sizing:border-box;}
+body{font-family:var(--font-body);margin:0;background:var(--bg);color:var(--text);}
+h1,h2,h3{font-family:var(--font-display);letter-spacing:-0.01em;}
+.mono{font-family:var(--font-mono);}
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            background-color: var(--bg);
-            color: var(--text);
-        }
+/* ---------- AUTH OVERLAY ---------- */
+#authOverlay{position:fixed;inset:0;background:radial-gradient(circle at 20% 20%,#182240 0%,#070a12 60%);display:flex;justify-content:center;align-items:center;z-index:9999;}
+.auth-card{background:#fff;padding:38px;border-radius:16px;width:100%;max-width:420px;box-shadow:0 25px 60px rgba(0,0,0,.35);text-align:center;}
+.auth-card .mark{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--violet));display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.4rem;margin:0 auto 16px;}
+.auth-card h2{margin:0 0 6px;color:var(--primary);font-size:1.3rem;}
+.auth-card p{color:var(--text-muted);font-size:.86rem;margin:0 0 18px;}
+.auth-card input{width:100%;padding:12px 14px;margin:0 0 14px;border:1px solid var(--border);border-radius:9px;box-sizing:border-box;font-size:.95rem;outline:none;}
+.auth-card input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(47,111,235,.12);}
+.auth-card button{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:9px;font-weight:700;cursor:pointer;font-size:.95rem;}
+.auth-card button:hover{background:var(--accent-dark);}
+#authError{color:var(--s-red);font-size:.82rem;display:none;margin-top:10px;}
 
-        /* ECRAN DE VERROUILLAGE / AUTHENTIFICATION */
-        #authOverlay {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(15, 23, 42, 0.95);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 9999;
-        }
+/* ---------- HEADER ---------- */
+header{background:var(--primary);color:#fff;padding:0 28px;height:68px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--primary-line);position:sticky;top:0;z-index:200;}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:700;font-size:1.1rem;}
+.logo .mark{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#38bdf8,var(--violet));display:flex;align-items:center;justify-content:center;font-size:.95rem;}
+.header-right{display:flex;align-items:center;gap:12px;}
+.badge-live{background:#0f2e21;color:#5be8b3;border:1px solid #164a35;padding:5px 12px;border-radius:20px;font-size:.78rem;font-weight:700;display:flex;align-items:center;gap:7px;}
+.badge-live .dot{width:7px;height:7px;border-radius:50%;background:#12b886;animation:blink 1.6s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+.btn-header{background:rgba(255,255,255,.06);border:1px solid var(--primary-line);color:#cdd6ea;padding:8px 14px;border-radius:9px;font-size:.82rem;font-weight:600;cursor:pointer;}
+.btn-header:hover{background:rgba(255,255,255,.12);color:#fff;}
 
-        .auth-card {
-            background: white;
-            padding: 35px;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 400px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-            text-align: center;
-        }
+.container{max-width:1440px;margin:28px auto;padding:0 24px;}
 
-        .auth-card h2 { margin-top: 0; color: var(--primary); }
+/* ---------- KPI ---------- */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:18px;margin-bottom:24px;}
+.kpi-card{background:var(--card);padding:20px;border-radius:12px;border:1px solid var(--border);border-left:4px solid var(--accent);box-shadow:0 1px 2px rgba(15,23,42,.03);}
+.kpi-title{font-size:.75rem;color:var(--text-muted);font-weight:700;text-transform:uppercase;letter-spacing:.03em;}
+.kpi-value{font-family:var(--font-display);font-size:1.9rem;font-weight:700;margin-top:8px;color:var(--primary);}
+.kpi-sub{font-size:.74rem;color:var(--text-muted);margin-top:4px;}
 
-        .auth-card input {
-            width: 100%;
-            padding: 12px;
-            margin: 15px 0;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 1rem;
-        }
+/* ---------- LAYOUT ---------- */
+.grid-2{display:grid;grid-template-columns:2fr 1fr;gap:20px;margin-bottom:24px;}
+.grid-2-eq{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px;}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:22px;box-shadow:0 1px 2px rgba(15,23,42,.03);margin-bottom:0;}
+.card h3{margin:0 0 14px;font-size:1rem;color:var(--primary);display:flex;align-items:center;justify-content:space-between;gap:10px;}
+.card h3 i{color:var(--accent);}
+.card-desc{font-size:.8rem;color:var(--text-muted);margin:-8px 0 14px;}
 
-        .auth-card button {
-            width: 100%;
-            padding: 12px;
-            background: var(--accent);
-            color: white;
-            border: none;
-            border-radius: 6px;
-            font-weight: bold;
-            cursor: pointer;
-            font-size: 1rem;
-        }
+.tab-toggle{display:flex;gap:4px;background:#f1f4fa;border-radius:8px;padding:3px;}
+.tab-toggle button{border:none;background:none;padding:6px 12px;border-radius:6px;font-size:.78rem;font-weight:700;cursor:pointer;color:var(--text-muted);}
+.tab-toggle button.active{background:#fff;color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.06);}
 
-        /* HEADER ADMIN */
-        header {
-            background-color: var(--primary);
-            color: white;
-            padding: 18px 30px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+/* ---------- TABLE ---------- */
+.table-responsive{overflow-x:auto;border:1px solid var(--border);border-radius:10px;}
+table{width:100%;border-collapse:collapse;font-size:.85rem;}
+th{background:#f6f8fc;padding:11px 14px;text-align:left;font-size:.72rem;text-transform:uppercase;color:var(--text-muted);border-bottom:1px solid var(--border);}
+td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+.plan-pill{padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;text-transform:uppercase;}
+.plan-decouverte{background:#eef1f6;color:#5b6478;}
+.plan-business_pro{background:#e1ebff;color:#1f4fc4;}
+.plan-entreprise{background:#efe7ff;color:#6832d6;}
+.sector-pill{background:#0c1220;color:#fff;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:700;}
 
-        .container {
-            max-width: 1400px;
-            margin: 30px auto;
-            padding: 0 20px;
-        }
+.stars{color:#f5a524;font-size:.85rem;letter-spacing:1px;}
+.feedback-msg{font-size:.85rem;color:var(--text);max-width:420px;}
+.feedback-meta{font-size:.72rem;color:var(--text-muted);margin-top:2px;}
 
-        /* KPI GRID */
-        .kpi-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
-        }
+.empty-state{text-align:center;padding:40px 20px;color:var(--text-muted);font-size:.85rem;}
+.empty-state i{font-size:1.8rem;color:#c9d3e4;margin-bottom:10px;display:block;}
 
-        .kpi-card {
-            background: var(--card);
-            padding: 22px;
-            border-radius: 10px;
-            border: 1px solid var(--border);
-            border-left: 5px solid var(--accent);
-            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-        }
+.export-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
+.btn-secondary{background:#eef2fb;color:var(--accent-dark);border:1px solid #d7e3ff;padding:9px 15px;border-radius:8px;font-weight:700;cursor:pointer;font-size:.8rem;}
+.btn-secondary:hover{background:#e2e9fb;}
 
-        .kpi-title { font-size: 0.85rem; color: #64748b; font-weight: 700; text-transform: uppercase; }
-        .kpi-value { font-size: 2rem; font-weight: 800; margin-top: 8px; color: var(--primary); }
+.config-note{background:#fff7e6;border:1px solid #ffe1a8;color:#92660b;padding:12px 16px;border-radius:9px;font-size:.8rem;margin-bottom:22px;display:flex;gap:10px;align-items:flex-start;}
+.config-note i{color:#c98a06;margin-top:2px;}
 
-        /* CHARTS GRID */
-        .grid-2 {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-        }
-
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 24px;
-        }
-
-        .badge-live {
-            background: #dcfce7;
-            color: #15803d;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 700;
-        }
-    </style>
+@media(max-width:900px){.grid-2,.grid-2-eq{grid-template-columns:1fr;}}
+</style>
 </head>
 <body>
 
-    <!-- OVERLAY D'AUTHENTIFICATION -->
-    <div id="authOverlay">
-        <div class="auth-card">
-            <i class="fa-solid fa-lock" style="font-size: 2.5rem; color: var(--accent);"></i>
-            <h2>Accès Administrateur</h2>
-            <p style="color: #64748b; font-size: 0.9rem;">Entrez votre clé secrète de propriétaire pour déverrouiller la console.</p>
-            <input type="password" id="adminKeyInput" placeholder="Clé Secrète (ex: admin123)">
-            <button onclick="unlockAdmin()">Déverrouiller</button>
-            <p id="authError" style="color: var(--danger); font-size: 0.85rem; display: none; margin-top: 10px;">Clé incorrecte.</p>
-        </div>
+<div id="authOverlay">
+  <div class="auth-card">
+    <div class="mark"><i class="fa-solid fa-satellite-dish"></i></div>
+    <h2>Console Fondateur</h2>
+    <p>Accès réservé au propriétaire d'OrbitFlow. Entre ta clé secrète pour déverrouiller la vue globale de toutes les entreprises clientes.</p>
+    <input type="password" id="adminKeyInput" placeholder="Clé secrète fondateur" onkeydown="if(event.key==='Enter')unlockAdmin()">
+    <button onclick="unlockAdmin()">Déverrouiller la console</button>
+    <p id="authError">Clé incorrecte. Réessaie.</p>
+  </div>
+</div>
+
+<header>
+  <div class="logo"><div class="mark"><i class="fa-solid fa-diagram-project"></i></div> OrbitFlow — Console Fondateur</div>
+  <div class="header-right">
+    <span class="badge-live" id="systemBadge"><span class="dot"></span> Connexion…</span>
+    <button class="btn-header" onclick="refreshAll()"><i class="fa-solid fa-rotate"></i> Actualiser</button>
+    <button class="btn-header" onclick="location.href='index.html'"><i class="fa-solid fa-arrow-left"></i> Retour à l'app</button>
+  </div>
+</header>
+
+<div class="container" id="mainContainer" style="display:none;">
+
+  <div class="config-note">
+    <i class="fa-solid fa-circle-info"></i>
+    <div>Cette console appelle <span class="mono">/admin/*</span> sur ton API. Pense à définir <span class="mono">FOUNDER_ADMIN_KEY</span>
+    dans les variables d'environnement Render (au lieu de la valeur par défaut du code) avant de la rendre publique.</div>
+  </div>
+
+  <div class="kpi-grid">
+    <div class="kpi-card" style="border-left-color:var(--s-yellow);">
+      <div class="kpi-title">MRR estimé</div>
+      <div class="kpi-value" id="mrrVal">$0.00</div>
+      <div class="kpi-sub">Revenu mensuel récurrent</div>
     </div>
-
-    <!-- PANNEAU D'ADMINISTRATION -->
-    <header>
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <i class="fa-solid fa-user-shield" style="font-size: 1.4rem; color: #38bdf8;"></i>
-            <h2 style="margin: 0; font-size: 1.2rem;">Console Propriétaire — Smart Workflow Planner</h2>
-        </div>
-        <div>
-            <span class="badge-live" id="systemBadge">Connexion Cloud...</span>
-        </div>
-    </header>
-
-    <div class="container">
-        <!-- METRIQUES FINANCIERES & OPERATIONNELLES -->
-        <div class="kpi-grid">
-            <div class="kpi-card" style="border-left-color: var(--warning);">
-                <div class="kpi-title">MRR Estimé (Revenu Mensuel)</div>
-                <div class="kpi-value" id="mrrVal">$0.00</div>
-            </div>
-            <div class="kpi-card" style="border-left-color: var(--accent);">
-                <div class="kpi-title">Abonnés & Entreprises</div>
-                <div class="kpi-value" id="usersVal">0</div>
-            </div>
-            <div class="kpi-card" style="border-left-color: var(--success);">
-                <div class="kpi-title">Départements Créés</div>
-                <div class="kpi-value" id="deptsVal">0</div>
-            </div>
-            <div class="kpi-card" style="border-left-color: #8b5cf6;">
-                <div class="kpi-title">Tâches & Activités</div>
-                <div class="kpi-value" id="tasksVal">0</div>
-            </div>
-        </div>
-
-        <!-- GRAPHIQUES DE PERFORMANCE -->
-        <div class="grid-2">
-            <div class="card">
-                <h3 style="margin-top:0;"><i class="fa-solid fa-chart-line"></i> Évolution des Revenus Recurrents (MRR)</h3>
-                <canvas id="revenueChart" height="120"></canvas>
-            </div>
-            <div class="card">
-                <h3 style="margin-top:0;"><i class="fa-solid fa-server"></i> État des Services Cloud</h3>
-                <p><strong>Base Neon PostgreSQL :</strong> <span style="color: var(--success); font-weight: bold;">En ligne</span></p>
-                <p><strong>API Render (FastAPI) :</strong> <span style="color: var(--success); font-weight: bold;">En ligne</span></p>
-                <p><strong>CDN Vercel Front-end :</strong> <span style="color: var(--success); font-weight: bold;">En ligne</span></p>
-                <hr style="border: 0; border-top: 1px solid var(--border); margin: 20px 0;">
-                <button onclick="refreshData()" style="width: 100%; padding: 10px; background: var(--primary); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">
-                    <i class="fa-solid fa-rotate"></i> Actualiser les données
-                </button>
-            </div>
-        </div>
+    <div class="kpi-card" style="border-left-color:var(--accent);">
+      <div class="kpi-title">Entreprises clientes</div>
+      <div class="kpi-value" id="orgsVal">0</div>
+      <div class="kpi-sub" id="orgsSub">—</div>
     </div>
+    <div class="kpi-card" style="border-left-color:var(--s-green);">
+      <div class="kpi-title">Utilisateurs actifs</div>
+      <div class="kpi-value" id="usersVal">0</div>
+    </div>
+    <div class="kpi-card" style="border-left-color:var(--violet);">
+      <div class="kpi-title">Domaines créés</div>
+      <div class="kpi-value" id="deptsVal">0</div>
+    </div>
+    <div class="kpi-card" style="border-left-color:#64748b;">
+      <div class="kpi-title">Tâches planifiées</div>
+      <div class="kpi-value" id="tasksVal">0</div>
+    </div>
+  </div>
 
-    <script>
-        const API_URL = "https://smart-workflow-planner-api.onrender.com";
-        const SECRET_KEY = "admin123";
+  <div class="grid-2">
+    <div class="card">
+      <h3>
+        <span><i class="fa-solid fa-chart-line"></i> Évolution des abonnements</span>
+        <div class="tab-toggle">
+          <button id="btnMonthly" class="active" onclick="setSubView('month')">Par mois</button>
+          <button id="btnYearly" onclick="setSubView('year')">Par année</button>
+        </div>
+      </h3>
+      <div style="height:280px;position:relative;"><canvas id="subsChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3><i class="fa-solid fa-server"></i> État des services cloud</h3>
+      <p style="font-size:.85rem;"><strong>Base PostgreSQL (Neon) :</strong> <span style="color:var(--s-green);font-weight:700;">En ligne</span></p>
+      <p style="font-size:.85rem;"><strong>API Render (FastAPI) :</strong> <span style="color:var(--s-green);font-weight:700;" id="apiStatus">En ligne</span></p>
+      <p style="font-size:.85rem;"><strong>Front-end (Vercel) :</strong> <span style="color:var(--s-green);font-weight:700;">En ligne</span></p>
+      <hr style="border:0;border-top:1px solid var(--border);margin:16px 0;">
+      <div class="kpi-title" style="margin-bottom:8px;">Répartition par plan</div>
+      <div style="height:150px;position:relative;"><canvas id="planChart"></canvas></div>
+    </div>
+  </div>
 
-        function unlockAdmin() {
-            const input = document.getElementById("adminKeyInput").value;
-            if (input === SECRET_KEY) {
-                document.getElementById("authOverlay").style.display = "none";
-                initAdminDashboard();
-            } else {
-                document.getElementById("authError").style.display = "block";
-            }
-        }
+  <div class="grid-2-eq">
+    <div class="card">
+      <h3><i class="fa-solid fa-industry"></i> Entreprises par secteur</h3>
+      <div style="height:260px;position:relative;"><canvas id="sectorChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3><i class="fa-solid fa-building"></i> Liste des entreprises</h3>
+      <div class="table-responsive">
+        <table>
+          <thead><tr><th>Entreprise</th><th>Secteur</th><th>Plan</th><th>Utilisateurs</th><th>Tâches</th><th>Depuis</th></tr></thead>
+          <tbody id="orgsTable"><tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Chargement…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="export-row"><button class="btn-secondary" onclick="exportOrgsCSV()"><i class="fa-solid fa-file-csv"></i> Exporter en CSV</button></div>
+    </div>
+  </div>
 
-        async function initAdminDashboard() {
-            try {
-                const res = await fetch(`${API_URL}/admin/stats`);
-                const data = await res.json();
+  <div class="card">
+    <h3><i class="fa-solid fa-comment-dots"></i> Retours & avis des utilisateurs</h3>
+    <p class="card-desc">Commentaires envoyés depuis l'application par les équipes clientes, toutes entreprises confondues.</p>
+    <div class="table-responsive">
+      <table>
+        <thead><tr><th>Auteur</th><th>Entreprise</th><th>Note</th><th>Message</th><th>Date</th></tr></thead>
+        <tbody id="feedbackTable"></tbody>
+      </table>
+    </div>
+    <div id="feedbackEmpty" class="empty-state" style="display:none;">
+      <i class="fa-solid fa-inbox"></i> Aucun retour utilisateur pour le moment.
+    </div>
+  </div>
 
-                document.getElementById("mrrVal").textContent = `$${data.estimated_mrr_usd.toFixed(2)}`;
-                document.getElementById("usersVal").textContent = data.total_users;
-                document.getElementById("deptsVal").textContent = data.total_departments;
-                document.getElementById("tasksVal").textContent = data.total_tasks;
-                
-                document.getElementById("systemBadge").textContent = data.system_status;
+</div>
 
-                renderChart(data.estimated_mrr_usd);
-            } catch (err) {
-                console.error("Erreur admin:", err);
-            }
-        }
+<script>
+const API_URL = "https://smart-workflow-planner-api.onrender.com";
+let founderToken = null;
+let statsData = null;
+let subView = 'month';
+let subsChartInstance = null, planChartInstance = null, sectorChartInstance = null;
 
-        function renderChart(currentMrr) {
-            const ctx = document.getElementById('revenueChart').getContext('2d');
-            new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: ['Mai', 'Juin', 'Juillet', 'Août (Actuel)'],
-                    datasets: [{
-                        label: 'Revenu Mensuel Récurrent ($)',
-                        data: [0, currentMrr * 0.3, currentMrr * 0.7, currentMrr],
-                        borderColor: '#2563eb',
-                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-                        fill: true,
-                        tension: 0.3
-                    }]
-                }
-            });
-        }
+async function unlockAdmin(){
+  const key = document.getElementById('adminKeyInput').value;
+  try{
+    const res = await fetch(`${API_URL}/admin/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key})
+    });
+    if(!res.ok) throw new Error('unauthorized');
+    const data = await res.json();
+    founderToken = data.access_token;
+    document.getElementById('authOverlay').style.display='none';
+    document.getElementById('mainContainer').style.display='block';
+    await refreshAll();
+  }catch(err){
+    document.getElementById('authError').style.display='block';
+  }
+}
 
-        function refreshData() {
-            initAdminDashboard();
-        }
+async function authFetch(path){
+  const res = await fetch(`${API_URL}${path}`, { headers: { 'Authorization': `Bearer ${founderToken}` } });
+  if(!res.ok) throw new Error('api error '+path);
+  return res.json();
+}
+
+async function refreshAll(){
+  document.getElementById('systemBadge').innerHTML = '<span class="dot"></span> Synchronisation…';
+  try{
+    const [stats, orgs, feedback] = await Promise.all([
+      authFetch('/admin/stats'),
+      authFetch('/admin/organizations'),
+      authFetch('/admin/feedback'),
+    ]);
+    statsData = stats;
+    renderKpis(stats);
+    renderSubsChart();
+    renderPlanChart(stats.organizations_by_plan);
+    renderSectorChart(stats.organizations_by_sector);
+    renderOrgsTable(orgs);
+    renderFeedbackTable(feedback);
+    document.getElementById('systemBadge').innerHTML = '<span class="dot"></span> En ligne';
+    document.getElementById('apiStatus').textContent = 'En ligne';
+  }catch(err){
+    document.getElementById('systemBadge').innerHTML = '<span class="dot" style="background:#f0454f;"></span> API injoignable';
+    document.getElementById('apiStatus').textContent = 'Injoignable';
+    console.error(err);
+  }
+}
+
+function renderKpis(stats){
+  document.getElementById('mrrVal').textContent = `$${stats.estimated_mrr_usd.toFixed(2)}`;
+  document.getElementById('orgsVal').textContent = stats.total_organizations;
+  document.getElementById('usersVal').textContent = stats.total_users;
+  document.getElementById('deptsVal').textContent = stats.total_departments;
+  document.getElementById('tasksVal').textContent = stats.total_tasks;
+  const payingPlans = Object.entries(stats.organizations_by_plan||{}).filter(([p])=>p!=='decouverte');
+  const payingCount = payingPlans.reduce((s,[,c])=>s+c,0);
+  document.getElementById('orgsSub').textContent = `dont ${payingCount} en formule payante`;
+}
+
+function setSubView(view){
+  subView = view;
+  document.getElementById('btnMonthly').classList.toggle('active', view==='month');
+  document.getElementById('btnYearly').classList.toggle('active', view==='year');
+  renderSubsChart();
+}
+
+function renderSubsChart(){
+  if(!statsData) return;
+  const ctx = document.getElementById('subsChart').getContext('2d');
+  const rows = subView==='month' ? (statsData.subscriptions_by_month||[]) : (statsData.subscriptions_by_year||[]);
+  const labels = rows.map(r => subView==='month' ? r.month : r.year);
+  const counts = rows.map(r => r.count);
+  const revenue = rows.map(r => r.revenue);
+  if(subsChartInstance) subsChartInstance.destroy();
+  subsChartInstance = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Nouveaux abonnements', data:counts, borderColor:'#2f6feb', backgroundColor:'rgba(47,111,235,.12)', fill:true, tension:.3, yAxisID:'y' },
+      { label:'Revenu ($)', data:revenue, borderColor:'#8457f5', backgroundColor:'rgba(132,87,245,.08)', fill:true, tension:.3, yAxisID:'y1' },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:true, position:'left', title:{display:true,text:'Abonnements'} },
+               y1:{ beginAtZero:true, position:'right', grid:{drawOnChartArea:false}, title:{display:true,text:'Revenu ($)'} } },
+      plugins:{legend:{position:'bottom'}} }
+  });
+}
+
+function renderPlanChart(byPlan){
+  const ctx = document.getElementById('planChart').getContext('2d');
+  const labelMap = {decouverte:'Découverte', business_pro:'Business Pro', entreprise:'Entreprise'};
+  const labels = Object.keys(byPlan||{}).map(k=>labelMap[k]||k);
+  const data = Object.values(byPlan||{});
+  if(planChartInstance) planChartInstance.destroy();
+  planChartInstance = new Chart(ctx, {
+    type:'doughnut',
+    data:{ labels, datasets:[{ data, backgroundColor:['#94a3b8','#2f6feb','#8457f5'] }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{boxWidth:10,font:{size:10}}}} }
+  });
+}
+
+function renderSectorChart(bySector){
+  const ctx = document.getElementById('sectorChart').getContext('2d');
+  const labels = Object.keys(bySector||{});
+  const data = Object.values(bySector||{});
+  if(sectorChartInstance) sectorChartInstance.destroy();
+  sectorChartInstance = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[{ label:"Nombre d'entreprises", data, backgroundColor:'#2f6feb', borderRadius:6 }] },
+    options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y', scales:{x:{beginAtZero:true,ticks:{precision:0}}}, plugins:{legend:{display:false}} }
+  });
+}
+
+let lastOrgs = [];
+function renderOrgsTable(orgs){
+  lastOrgs = orgs;
+  const tbody = document.getElementById('orgsTable');
+  if(!orgs || orgs.length===0){ tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucune entreprise inscrite pour le moment.</td></tr>'; return; }
+  const planLabel = {decouverte:'Découverte', business_pro:'Business Pro', entreprise:'Entreprise'};
+  tbody.innerHTML = orgs.map(o => `
+    <tr>
+      <td><strong>${o.name}</strong><br><span style="font-size:.72rem;color:var(--text-muted);">${o.owner_email||''}</span></td>
+      <td><span class="sector-pill">${o.sector||'Autre'}</span></td>
+      <td><span class="plan-pill plan-${o.plan}">${planLabel[o.plan]||o.plan}</span></td>
+      <td>${o.users_count}</td>
+      <td>${o.tasks_count}</td>
+      <td class="mono">${o.created_at ? new Date(o.created_at).toLocaleDateString('fr-FR') : '—'}</td>
+    </tr>`).join('');
+}
+
+function renderFeedbackTable(rows){
+  const tbody = document.getElementById('feedbackTable');
+  const empty = document.getElementById('feedbackEmpty');
+  if(!rows || rows.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td><strong>${r.author_name||'Anonyme'}</strong></td>
+      <td>${r.organization_name}</td>
+      <td class="stars">${'★'.repeat(r.rating)}${'☆'.repeat(5-r.rating)}</td>
+      <td class="feedback-msg">${r.message}</td>
+      <td class="mono">${r.created_at ? new Date(r.created_at).toLocaleDateString('fr-FR') : '—'}</td>
+    </tr>`).join('');
+}
+
+function exportOrgsCSV(){
+  if(lastOrgs.length===0) return;
+  const header = ['Nom','Secteur','Plan','Utilisateurs','Taches','Cree_le'];
+  const rows = lastOrgs.map(o => [o.name, o.sector, o.plan, o.users_count, o.tasks_count, o.created_at]);
+  const csv = [header, ...rows].map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `orbitflow-entreprises-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
+
     </script>
 </body>
 </html>
