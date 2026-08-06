@@ -275,6 +275,15 @@ tr:last-child td{border-bottom:none;}
 .role-card i{font-size:1.4rem;color:var(--accent);margin-bottom:8px;display:block;}
 .role-card b{display:block;font-size:.85rem;}
 .role-card span{font-size:.72rem;color:var(--text-muted);}
+.tab-toggle{display:flex;gap:4px;background:#f1f4fa;border-radius:8px;padding:3px;}
+.tab-toggle button{border:none;background:none;padding:7px 14px;border-radius:6px;font-size:.8rem;font-weight:700;cursor:pointer;color:var(--text-muted);flex:1;}
+.tab-toggle button.active{background:#fff;color:var(--accent);box-shadow:0 1px 2px rgba(0,0,0,.06);}
+.invite-link-box{display:flex;gap:8px;align-items:center;background:#f6f8fc;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.78rem;margin-top:6px;}
+.invite-link-box input{border:none;background:none;font-family:var(--font-mono);font-size:.74rem;padding:0;}
+.team-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);font-size:.85rem;}
+.team-row:last-child{border-bottom:none;}
+.star-input{font-size:1.4rem;color:#e2e8f0;cursor:pointer;}
+.star-input.active{color:var(--s-yellow);}
 
 /* ============ PRICING ============ */
 .pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:26px;margin-top:16px;}
@@ -323,37 +332,83 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
 </head>
 <body>
 
-<!-- ============ MODAL: ONBOARDING / ROLE ============ -->
+<!-- ============ MODAL: AUTHENTIFICATION (Connexion / Inscription / Invitation) ============ -->
 <div id="onboardModal" class="modal" style="display:flex;">
   <div class="modal-content">
-    <h3 style="margin-top:0;"><i class="fa-solid fa-rocket" style="color:var(--accent);"></i> Bienvenue sur OrbitFlow</h3>
-    <p style="font-size:.88rem;color:var(--text-muted);">Dis-nous qui tu es pour personnaliser ton espace de planification.</p>
-    <form id="onboardForm">
-      <div class="form-group">
-        <label>Nom complet</label>
-        <input type="text" id="onbName" placeholder="ex: Awa Ngono" required>
+    <div class="mark" style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--violet));display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;margin-bottom:14px;"><i class="fa-solid fa-rocket"></i></div>
+
+    <!-- Mode INVITATION (affiché seulement si un lien d'invitation est ouvert) -->
+    <div id="inviteMode" style="display:none;">
+      <h3 style="margin-top:0;">Rejoindre <span id="inviteOrgName">l'équipe</span></h3>
+      <p style="font-size:.88rem;color:var(--text-muted);">Tu as été invité(e) en tant que <strong id="inviteRoleLabel">membre</strong>. Choisis un mot de passe pour sécuriser ton accès.</p>
+      <form id="inviteAcceptForm">
+        <div class="form-group"><label>Ton nom complet</label><input type="text" id="inviteName" required></div>
+        <div class="form-group"><label>E-mail</label><input type="email" id="inviteEmail" disabled></div>
+        <div class="form-group"><label>Choisis un mot de passe</label><input type="password" id="invitePassword" minlength="6" required></div>
+        <button type="submit" class="btn-primary">Activer mon compte</button>
+      </form>
+    </div>
+
+    <!-- Mode CONNEXION / INSCRIPTION -->
+    <div id="authMode">
+      <div class="tab-toggle" style="margin-bottom:16px;">
+        <button type="button" id="btnAuthLogin" class="active" onclick="setAuthTab('login')">Se connecter</button>
+        <button type="button" id="btnAuthRegister" onclick="setAuthTab('register')">Créer mon organisation</button>
       </div>
-      <div class="form-group">
-        <label>Adresse e-mail (pro ou perso — pour recevoir les alertes)</label>
-        <input type="email" id="onbEmail" placeholder="ex: awa@entreprise.com" required>
-      </div>
-      <div class="form-group">
-        <label>Ton rôle</label>
-        <div class="role-choice">
-          <div class="role-card selected" data-role="employe" onclick="selectRole(this,'employe')">
-            <i class="fa-solid fa-user"></i>
-            <b>Employé(e)</b>
-            <span>Suis mes tâches, mon cahier de charge quotidien</span>
-          </div>
-          <div class="role-card" data-role="superviseur" onclick="selectRole(this,'superviseur')">
-            <i class="fa-solid fa-user-shield"></i>
-            <b>Superviseur</b>
-            <span>Planifie, assigne et valide les livrables</span>
-          </div>
+
+      <form id="loginForm">
+        <div class="form-group"><label>E-mail professionnel</label><input type="email" id="loginEmail" placeholder="ex: toi@entreprise.com" required></div>
+        <div class="form-group"><label>Mot de passe</label><input type="password" id="loginPassword" required></div>
+        <button type="submit" class="btn-primary">Se connecter</button>
+        <p id="loginError" style="color:var(--s-red);font-size:.8rem;display:none;margin-top:10px;">E-mail ou mot de passe incorrect.</p>
+      </form>
+
+      <form id="registerForm" style="display:none;">
+        <div class="form-group"><label>Nom de ton organisation</label><input type="text" id="regOrgName" placeholder="ex: Groupe SABC" required></div>
+        <div class="form-group">
+          <label>Secteur d'activité</label>
+          <select id="regSector">
+            <option>Finance</option><option>Ressources Humaines</option><option>Technologie</option>
+            <option>Santé</option><option>Éducation</option><option>Industrie</option><option>Commerce</option>
+            <option>ONG / Associatif</option><option>Gouvernement</option><option>Autre</option>
+          </select>
+        </div>
+        <div class="form-group"><label>Ton nom complet</label><input type="text" id="regAdminName" required></div>
+        <div class="form-group"><label>Ton e-mail (tu seras Super Administrateur)</label><input type="email" id="regAdminEmail" required></div>
+        <div class="form-group"><label>Choisis un mot de passe</label><input type="password" id="regAdminPassword" minlength="6" required></div>
+        <button type="submit" class="btn-primary">Créer mon organisation</button>
+        <p id="registerError" style="color:var(--s-red);font-size:.8rem;display:none;margin-top:10px;"></p>
+      </form>
+
+      <p style="text-align:center;font-size:.8rem;margin-top:16px;">
+        <a href="#" onclick="enterDemoMode();return false;" style="color:var(--text-muted);">Découvrir en mode démonstration, sans compte →</a>
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: EQUIPE & INVITATIONS ============ -->
+<div id="teamModal" class="modal">
+  <div class="modal-content wide">
+    <span class="close-modal" onclick="closeModal('teamModal')">&times;</span>
+    <h3 style="margin-top:0;"><i class="fa-solid fa-users" style="color:var(--accent);"></i> Équipe & invitations</h3>
+    <p style="font-size:.85rem;color:var(--text-muted);">
+      En tant que Super Administrateur (ou Superviseur), invite les membres de ton organisation par e-mail. Chaque personne
+      invitée reçoit un lien unique pour créer son propre mot de passe — personne d'autre ne peut se connecter à ta place.
+    </p>
+    <form id="inviteForm">
+      <div class="two-col">
+        <div class="form-group"><label>E-mail à inviter</label><input type="email" id="inviteEmailInput" placeholder="collegue@entreprise.com" required></div>
+        <div class="form-group">
+          <label>Rôle</label>
+          <select id="inviteRoleInput"><option value="employe">Employé</option><option value="superviseur">Superviseur</option></select>
         </div>
       </div>
-      <button type="submit" class="btn-primary">Entrer dans l'espace de travail</button>
+      <button type="submit" class="btn-primary">Générer l'invitation</button>
     </form>
+    <div id="inviteResult"></div>
+    <h4 style="margin:20px 0 6px;font-size:.9rem;color:var(--primary);">Membres de l'organisation</h4>
+    <div id="teamList"></div>
   </div>
 </div>
 
@@ -386,14 +441,17 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
     <p style="font-size:.88rem;color:var(--text-muted);">Offre sélectionnée : <strong id="modalPlanName" style="color:var(--accent);">--</strong></p>
     <div style="font-family:var(--font-display);font-size:1.8rem;font-weight:700;margin:14px 0;color:var(--primary);" id="modalPlanPrice">0$</div>
     <form id="paymentForm">
-      <div class="form-group"><label>Nom de l'entreprise</label><input type="text" placeholder="ex: Groupe SABC" required></div>
-      <div class="form-group"><label>Email professionnel</label><input type="email" placeholder="contact@entreprise.com" required></div>
+      <div class="form-group"><label>Nom de l'entreprise</label><input type="text" id="paySocietyName" placeholder="ex: Groupe SABC" required></div>
+      <div class="form-group"><label>Email professionnel</label><input type="email" id="payEmail" placeholder="contact@entreprise.com" required></div>
       <div class="form-group">
         <label>Moyen de paiement</label>
-        <select required>
-          <option value="card">Carte bancaire (Visa / Mastercard via Stripe)</option>
-          <option value="momo">Mobile Money (MTN / Orange Money)</option>
+        <select id="paymentMethodSelect" required>
+          <option value="carte">Carte bancaire (Visa / Mastercard / American Express — Stripe)</option>
+          <option value="mobile_money">Mobile Money (MTN MoMo / Orange Money)</option>
+          <option value="virement">Virement bancaire (SWIFT / SEPA)</option>
+          <option value="paypal">PayPal</option>
         </select>
+        <p class="hint"><i class="fa-solid fa-lock"></i> Paiements chiffrés de bout en bout, traités par des passerelles certifiées PCI-DSS.</p>
       </div>
       <button type="submit" class="btn-primary" style="margin-top:8px;">Valider et activer le plan</button>
     </form>
@@ -439,8 +497,9 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       <i class="fa-solid fa-bell"></i>
       <span class="notif-dot" id="notifCount" style="display:none;">0</span>
     </div>
+    <div class="icon-btn" id="teamIconBtn" onclick="openTeamModal()" title="Équipe & invitations" style="display:none;"><i class="fa-solid fa-users"></i></div>
     <div class="icon-btn" onclick="openModal('settingsModal')" title="Alertes e-mail"><i class="fa-solid fa-gear"></i></div>
-    <div class="user-chip" onclick="openModal('onboardModal')" title="Changer de profil">
+    <div class="user-chip" onclick="handleUserChipClick()" title="Compte">
       <div class="avatar" id="userAvatar">?</div>
       <div><div id="userNameChip" style="font-weight:700;">Invité</div><div class="role-tag" id="userRoleChip">—</div></div>
     </div>
@@ -716,6 +775,23 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
         <div style="height:300px;position:relative;"><canvas id="deptBarChart"></canvas></div>
       </div>
     </div>
+
+    <div class="card">
+      <h2><i class="fa-solid fa-comment-dots"></i> Partager un avis sur OrbitFlow</h2>
+      <p class="card-desc">Ton retour est transmis directement à l'équipe OrbitFlow pour améliorer l'outil.</p>
+      <form id="feedbackForm">
+        <div class="form-group">
+          <label>Ta note</label>
+          <div id="starRating">
+            <span class="star-input" data-v="1">★</span><span class="star-input" data-v="2">★</span>
+            <span class="star-input" data-v="3">★</span><span class="star-input" data-v="4">★</span>
+            <span class="star-input" data-v="5">★</span>
+          </div>
+        </div>
+        <div class="form-group"><label>Ton message</label><textarea id="feedbackMessage" rows="3" placeholder="Ce que tu aimes, ce qui manque..." required></textarea></div>
+        <button type="submit" class="btn-secondary" style="width:auto;">Envoyer mon avis</button>
+      </form>
+    </div>
   </div>
 
   <!-- ============ TAB: PRICING ============ -->
@@ -798,56 +874,166 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
 
 <script>
 /* =====================================================================
-   BACKEND REQUIS (à faire évoluer côté API FastAPI / Render) :
-   - Table "tasks" enrichie: due_date, assignee_name, assignee_email,
-     supervisor_email, validation_status ('en_cours'|'en_attente'|'valide'|'rejete'),
-     delay_reason, new_due_date, domain (alias department).
-   - Endpoint PATCH /tasks/{id}/validate  { decision: 'valide'|'rejete', comment }
-   - Endpoint PATCH /tasks/{id}/delay-reason { reason, new_due_date }
-   - Endpoint POST /daily-tasks/ { owner_email, date, items:[{text, done}] }
-   - Job planifié quotidien (cron) qui recalcule les statuts et déclenche
-     l'envoi d'e-mails (ex: via SendGrid/SMTP) pour automatiser les alertes
-     même quand personne n'a la page ouverte.
-   Tant que ces endpoints n'existent pas, cette interface gère les nouveaux
-   champs en mémoire côté client (voir extendedTaskData) et reste 100%
-   fonctionnelle pour démonstration commerciale.
+   Cette interface est câblée sur le backend v2 (authentification, invitations,
+   validation, retards) : /auth/*, /tasks/{id}, /tasks/{id}/validate, /feedback/,
+   /billing/subscribe. Si l'API est injoignable (ou en mode démo), tout continue
+   de fonctionner grâce à des données d'exemple en mémoire — pratique pour une
+   démonstration commerciale même sans connexion au serveur.
+   Reste à faire côté backend pour une automatisation complète : un job planifié
+   quotidien (cron) qui recalcule les statuts et envoie les e-mails de retard
+   même quand personne n'a la page ouverte (aujourd'hui, la vérification se fait
+   uniquement pendant qu'un utilisateur a la page active).
 ===================================================================== */
 
 const API_URL = "https://smart-workflow-planner-api.onrender.com";
 let departmentsMap = {};
 let tasksCache = [];
-let extendedTaskData = {};   // id -> {dueDate, assigneeName, assigneeEmail, validationStatus, delayReason, newDueDate}
+let taskFlags = {};          // id -> {notifiedRed, notifiedYellow} — purement local, ne concerne pas le backend
 let dailyJournal = {};       // 'YYYY-MM-DD' -> [{id,text,done,time}]
 let notifications = [];
 let doughnutChartInstance = null;
 let barChartInstance = null;
 let activePlan = "Découverte";
-let currentUser = { name:"", email:"", role:"employe" };
+let authToken = null;
+let currentUser = { id:null, name:"", email:"", role:"employe" };
+let currentOrg = { id:null, name:"", sector:"", plan:"decouverte" };
 let emailConfig = { serviceId:"", templateId:"", publicKey:"", threshold:3, enabled:false };
 let demoMode = false;
+let selectedStarRating = 5;
 
 const todayStr = () => new Date().toISOString().slice(0,10);
 
 /* ---------------- ONBOARDING ---------------- */
-function selectRole(el, role){
-  document.querySelectorAll('.role-card').forEach(c=>c.classList.remove('selected'));
-  el.classList.add('selected');
-  currentUser.role = role;
+/* ---------------- AUTHENTIFICATION REELLE ---------------- */
+const roleLabels = { super_admin:'Super Administrateur', superviseur:'Superviseur', employe:'Employé' };
+
+function setAuthTab(mode){
+  document.getElementById('btnAuthLogin').classList.toggle('active', mode==='login');
+  document.getElementById('btnAuthRegister').classList.toggle('active', mode==='register');
+  document.getElementById('loginForm').style.display = mode==='login' ? 'block' : 'none';
+  document.getElementById('registerForm').style.display = mode==='register' ? 'block' : 'none';
 }
-document.getElementById('onboardForm').addEventListener('submit', (e)=>{
-  e.preventDefault();
-  currentUser.name = document.getElementById('onbName').value.trim();
-  currentUser.email = document.getElementById('onbEmail').value.trim();
+
+function applyLoggedInUser(user, org, token){
+  authToken = token;
+  currentUser = user;
+  currentOrg = org || currentOrg;
   document.getElementById('userNameChip').textContent = currentUser.name;
-  document.getElementById('userRoleChip').textContent = currentUser.role === 'superviseur' ? 'Superviseur' : 'Employé';
-  document.getElementById('userAvatar').textContent = currentUser.name.slice(0,1).toUpperCase() || '?';
-  document.getElementById('validationTabBtn').style.display = currentUser.role === 'superviseur' ? 'flex' : 'none';
-  document.getElementById('createDeptCard').style.display = currentUser.role === 'superviseur' ? 'block' : 'none';
+  document.getElementById('userRoleChip').textContent = roleLabels[currentUser.role] || currentUser.role;
+  document.getElementById('userAvatar').textContent = (currentUser.name||'?').slice(0,1).toUpperCase();
+  const isSupervisorLike = currentUser.role === 'superviseur' || currentUser.role === 'super_admin';
+  document.getElementById('validationTabBtn').style.display = isSupervisorLike ? 'flex' : 'none';
+  document.getElementById('createDeptCard').style.display = currentUser.role === 'super_admin' ? 'block' : 'none';
+  document.getElementById('teamIconBtn').style.display = isSupervisorLike ? 'flex' : 'none';
+  if(currentOrg && currentOrg.plan){
+    const planLabel = {decouverte:'Plan Découverte', business_pro:'Plan Business Pro', entreprise:'Plan Entreprise'}[currentOrg.plan] || 'Plan Découverte';
+    document.getElementById('currentPlanBadge').textContent = planLabel;
+    activePlan = planLabel.replace('Plan ','');
+  }
+  demoMode = false;
   closeModal('onboardModal');
-  renderAll();
+  loadDepartments().then(loadTasks);
+}
+
+function handleUserChipClick(){
+  if(!authToken){ openModal('onboardModal'); return; }
+  if(confirm('Se déconnecter de OrbitFlow ?')){
+    authToken = null; currentUser = {id:null,name:'',email:'',role:'employe'};
+    location.reload();
+  }
+}
+
+function enterDemoMode(){
+  demoMode = true;
+  currentUser = { id:null, name:'Visiteur', email:'', role:'super_admin' };
+  document.getElementById('userNameChip').textContent = 'Mode démo';
+  document.getElementById('userRoleChip').textContent = 'Exploration libre';
+  document.getElementById('userAvatar').textContent = 'D';
+  document.getElementById('validationTabBtn').style.display = 'flex';
+  document.getElementById('createDeptCard').style.display = 'block';
+  document.getElementById('teamIconBtn').style.display = 'none';
+  closeModal('onboardModal');
+  seedDemoData();
+  renderDemoBanner();
+  loadDepartments().then(()=>{ computeAllStatuses(true); renderAll(); });
+}
+
+document.getElementById('loginForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  document.getElementById('loginError').style.display = 'none';
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  try{
+    const res = await fetch(`${API_URL}/auth/login`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({email, password})
+    });
+    if(!res.ok) throw new Error('login failed');
+    const data = await res.json();
+    applyLoggedInUser(data.user, data.organization, data.access_token);
+  }catch(err){
+    document.getElementById('loginError').style.display = 'block';
+  }
 });
-// Superviseur-only visibility by default until first selection
-document.getElementById('validationTabBtn').style.display = 'none';
+
+document.getElementById('registerForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const errEl = document.getElementById('registerError');
+  errEl.style.display = 'none';
+  const payload = {
+    organization_name: document.getElementById('regOrgName').value.trim(),
+    sector: document.getElementById('regSector').value,
+    admin_name: document.getElementById('regAdminName').value.trim(),
+    admin_email: document.getElementById('regAdminEmail').value.trim(),
+    admin_password: document.getElementById('regAdminPassword').value,
+  };
+  try{
+    const res = await fetch(`${API_URL}/auth/register`, {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    if(!res.ok){ const d = await res.json().catch(()=>({})); throw new Error(d.detail || 'Inscription impossible'); }
+    const data = await res.json();
+    applyLoggedInUser(data.user, data.organization, data.access_token);
+  }catch(err){
+    errEl.textContent = err.message || "Impossible de créer l'organisation pour le moment.";
+    errEl.style.display = 'block';
+  }
+});
+
+function checkInviteInUrl(){
+  const params = new URLSearchParams(location.search);
+  const token = params.get('invite');
+  if(!token) return;
+  document.getElementById('authMode').style.display = 'none';
+  document.getElementById('inviteMode').style.display = 'block';
+  fetch(`${API_URL}/auth/invite/${token}`).then(r=>{
+    if(!r.ok) throw new Error('invalid');
+    return r.json();
+  }).then(info=>{
+    document.getElementById('inviteOrgName').textContent = info.organization_name || "l'équipe";
+    document.getElementById('inviteRoleLabel').textContent = roleLabels[info.role] || info.role;
+    document.getElementById('inviteName').value = info.name || '';
+    document.getElementById('inviteEmail').value = info.email || '';
+  }).catch(()=>{
+    document.getElementById('inviteMode').innerHTML = '<p>Ce lien d\'invitation est invalide ou a déjà été utilisé.</p>';
+  });
+  document.getElementById('inviteAcceptForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const name = document.getElementById('inviteName').value.trim();
+    const password = document.getElementById('invitePassword').value;
+    try{
+      const res = await fetch(`${API_URL}/auth/invite/${token}/accept`, {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name, password})
+      });
+      if(!res.ok) throw new Error('accept failed');
+      const data = await res.json();
+      history.replaceState({}, '', location.pathname);
+      applyLoggedInUser(data.user, data.organization, data.access_token);
+    }catch(err){
+      alert("Impossible d'activer ce compte. Le lien est peut-être expiré.");
+    }
+  });
+}
 
 /* ---------------- MODAL HELPERS ---------------- */
 function openModal(id){ document.getElementById(id).style.display='flex'; }
@@ -919,22 +1105,22 @@ function sendAlertEmail(toEmail, toName, subject, message){
 }
 
 /* ---------------- ALERT STATUS ENGINE (signature feature) ---------------- */
-function computeAlertStatus(task, ext){
+function computeAlertStatus(task){
   const progress = task.progress;
   if(progress >= 100){
-    return ext.validationStatus === 'valide'
+    return task.validation_status === 'valide'
       ? {level:'green', label:'Validé'}
       : {level:'blue', label:'En attente de validation'};
   }
-  if(!ext.dueDate){ return {level:'blue', label:'À venir'}; }
+  if(!task.due_date){ return {level:'blue', label:'À venir'}; }
 
-  const due = new Date(ext.dueDate);
-  const ref = ext.newDueDate ? new Date(ext.newDueDate) : due;
+  const due = new Date(task.due_date);
+  const ref = task.new_due_date ? new Date(task.new_due_date) : due;
   const now = new Date(todayStr());
   const diffDays = Math.ceil((ref - now) / 86400000);
 
   if(diffDays < 0){
-    if(ext.delayReason && ext.delayReason.trim().length>0){
+    if(task.delay_reason && task.delay_reason.trim().length>0){
       return {level:'justified', label:'Retard justifié'};
     }
     return {level:'red', label:'Retard non justifié'};
@@ -945,40 +1131,46 @@ function computeAlertStatus(task, ext){
   return {level:'green', label:'Dans les temps'};
 }
 
-function ensureExt(taskId){
-  if(!extendedTaskData[taskId]){
-    extendedTaskData[taskId] = {dueDate:null, assigneeName:'', assigneeEmail:'', validationStatus:'en_cours', delayReason:'', newDueDate:null, notifiedRed:false, notifiedYellow:false};
-  }
-  return extendedTaskData[taskId];
+function ensureFlags(taskId){
+  if(!taskFlags[taskId]){ taskFlags[taskId] = {notifiedRed:false, notifiedYellow:false}; }
+  return taskFlags[taskId];
 }
 
 function computeAllStatuses(silent){
   tasksCache.forEach(t=>{
-    const ext = ensureExt(t.id);
-    const status = computeAlertStatus(t, ext);
+    const flags = ensureFlags(t.id);
+    const status = computeAlertStatus(t);
     if(!silent){
-      if(status.level==='red' && !ext.notifiedRed){
-        ext.notifiedRed = true;
+      if(status.level==='red' && !flags.notifiedRed){
+        flags.notifiedRed = true;
         pushNotification('red', `Retard : ${t.title}`, `Échéance dépassée sans justification.`);
-        sendAlertEmail(ext.assigneeEmail, ext.assigneeName, `[OrbitFlow] Retard sur "${t.title}"`, `La tâche "${t.title}" a dépassé son échéance sans justification. Merci de mettre à jour son statut.`);
+        sendAlertEmail(t.assignee_email, t.assignee_name, `[OrbitFlow] Retard sur "${t.title}"`, `La tâche "${t.title}" a dépassé son échéance sans justification. Merci de mettre à jour son statut.`);
       }
-      if(status.level==='yellow' && !ext.notifiedYellow){
-        ext.notifiedYellow = true;
+      if(status.level==='yellow' && !flags.notifiedYellow){
+        flags.notifiedYellow = true;
         pushNotification('yellow', `Échéance proche : ${t.title}`, `Moins de ${emailConfig.threshold||3} jours restants.`);
-        sendAlertEmail(ext.assigneeEmail, ext.assigneeName, `[OrbitFlow] Échéance proche pour "${t.title}"`, `La tâche "${t.title}" arrive à échéance dans moins de ${emailConfig.threshold||3} jour(s).`);
+        sendAlertEmail(t.assignee_email, t.assignee_name, `[OrbitFlow] Échéance proche pour "${t.title}"`, `La tâche "${t.title}" arrive à échéance dans moins de ${emailConfig.threshold||3} jour(s).`);
       }
     }
   });
 }
 
 /* ---------------- API (avec repli démo) ---------------- */
+function authHeaders(){
+  return authToken ? {'Authorization': `Bearer ${authToken}`} : {};
+}
 async function apiGet(path){
-  const res = await fetch(`${API_URL}${path}`);
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
   if(!res.ok) throw new Error('API error');
   return res.json();
 }
 async function apiPost(path, body){
-  const res = await fetch(`${API_URL}${path}`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  const res = await fetch(`${API_URL}${path}`, {method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body:JSON.stringify(body)});
+  if(!res.ok) throw new Error('API error');
+  return res.json();
+}
+async function apiPatch(path, body){
+  const res = await fetch(`${API_URL}${path}`, {method:'PATCH', headers:{'Content-Type':'application/json', ...authHeaders()}, body:JSON.stringify(body)});
   if(!res.ok) throw new Error('API error');
   return res.json();
 }
@@ -986,27 +1178,21 @@ async function apiPost(path, body){
 function seedDemoData(){
   demoMode = true;
   departmentsMap = {1:'Direction Financière', 2:'Ressources Humaines', 3:'Opérations'};
-  tasksCache = [
-    {id:101, title:'Audit trimestriel des comptes', department_id:1, progress:70, deliverable:'Rapport PDF signé'},
-    {id:102, title:'Campagne de recrutement Q3', department_id:2, progress:30, deliverable:'Short-list de 5 candidats'},
-    {id:103, title:'Optimisation de la chaîne logistique', department_id:3, progress:100, deliverable:'Note de synthèse'},
-    {id:104, title:'Clôture budgétaire annuelle', department_id:1, progress:10, deliverable:'Tableau Excel consolidé'},
-  ];
   const in2 = new Date(Date.now()+2*86400000).toISOString().slice(0,10);
   const in10 = new Date(Date.now()+10*86400000).toISOString().slice(0,10);
   const past = new Date(Date.now()-3*86400000).toISOString().slice(0,10);
-  extendedTaskData = {
-    101:{dueDate:in2, assigneeName:'Jean Mballa', assigneeEmail:'', validationStatus:'en_cours', delayReason:'', newDueDate:null},
-    102:{dueDate:in10, assigneeName:'Awa Ngono', assigneeEmail:'', validationStatus:'en_cours', delayReason:'', newDueDate:null},
-    103:{dueDate:past, assigneeName:'Paul Etoundi', assigneeEmail:'', validationStatus:'en_attente', delayReason:'', newDueDate:null},
-    104:{dueDate:past, assigneeName:'Sarah Biya', assigneeEmail:'', validationStatus:'en_cours', delayReason:'', newDueDate:null},
-  };
+  tasksCache = [
+    {id:101, title:'Audit trimestriel des comptes', department_id:1, progress:70, deliverable:'Rapport PDF signé', due_date:in2, assignee_name:'Jean Mballa', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null},
+    {id:102, title:'Campagne de recrutement Q3', department_id:2, progress:30, deliverable:'Short-list de 5 candidats', due_date:in10, assignee_name:'Awa Ngono', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null},
+    {id:103, title:'Optimisation de la chaîne logistique', department_id:3, progress:100, deliverable:'Note de synthèse', due_date:past, assignee_name:'Paul Etoundi', assignee_email:'', validation_status:'en_attente', delay_reason:'', new_due_date:null},
+    {id:104, title:'Clôture budgétaire annuelle', department_id:1, progress:10, deliverable:'Tableau Excel consolidé', due_date:past, assignee_name:'Sarah Biya', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null},
+  ];
 }
 
 async function loadDepartments(){
   try{
+    if(demoMode) throw new Error('demo');
     const depts = await apiGet('/departments/');
-    if(!Array.isArray(depts) || depts.length===0) throw new Error('empty');
     departmentsMap = {};
     depts.forEach(d=>{ departmentsMap[d.id] = d.name; });
   }catch(e){
@@ -1023,12 +1209,13 @@ async function loadDepartments(){
 
 async function loadTasks(){
   try{
+    if(demoMode) throw new Error('demo');
     const tasks = await apiGet('/tasks/');
-    if(!demoMode || (Array.isArray(tasks) && tasks.length>0)){ tasksCache = tasks; }
+    tasksCache = tasks;
   }catch(e){
     if(tasksCache.length===0) seedDemoData();
   }
-  tasksCache.forEach(t=>ensureExt(t.id));
+  tasksCache.forEach(t=>ensureFlags(t.id));
   renderDemoBanner();
   computeAllStatuses(true);
   renderAll();
@@ -1062,16 +1249,15 @@ function renderMatrix(){
     return;
   }
   tbody.innerHTML = tasksCache.map(t=>{
-    const ext = ensureExt(t.id);
-    const status = computeAlertStatus(t, ext);
+    const status = computeAlertStatus(t);
     const deptName = departmentsMap[t.department_id] || 'Général';
     const deliverableText = t.deliverable || 'Document de synthèse / Validation';
-    const dueLabel = ext.dueDate ? new Date(ext.dueDate).toLocaleDateString('fr-FR') : '—';
+    const dueLabel = t.due_date ? new Date(t.due_date).toLocaleDateString('fr-FR') : '—';
     const canJustify = status.level === 'red';
     return `
       <tr>
         <td><span class="domain-pill">${deptName}</span><br><strong style="display:inline-block;margin-top:6px;">${t.title}</strong><br><span class="deliverable-tag" style="margin-top:6px;"><i class="fa-solid fa-file-contract"></i> ${deliverableText}</span></td>
-        <td>${ext.assigneeName ? ext.assigneeName : '<span style="color:var(--text-muted);">Non assigné</span>'}</td>
+        <td>${t.assignee_name ? t.assignee_name : '<span style="color:var(--text-muted);">Non assigné</span>'}</td>
         <td class="mono">${dueLabel}</td>
         <td>
           <div class="progress-wrapper">
@@ -1089,9 +1275,8 @@ function renderWeekly(){
   const tbody = document.getElementById('weeklyTaskTable');
   if(tasksCache.length===0){ tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune tâche.</td></tr>'; return; }
   tbody.innerHTML = tasksCache.map(t=>{
-    const ext = ensureExt(t.id);
     const deptName = departmentsMap[t.department_id] || 'Général';
-    const dueLabel = ext.dueDate ? new Date(ext.dueDate).toLocaleDateString('fr-FR') : '—';
+    const dueLabel = t.due_date ? new Date(t.due_date).toLocaleDateString('fr-FR') : '—';
     return `<tr><td><span class="domain-pill">${deptName}</span></td><td><strong>${t.title}</strong></td><td>${t.deliverable||'—'}</td><td class="mono">${dueLabel}</td><td><strong>${t.progress}%</strong></td></tr>`;
   }).join('');
 }
@@ -1101,13 +1286,12 @@ function renderEval(){
   if(tasksCache.length===0){ tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune tâche.</td></tr>'; return; }
   const labelFor = {en_cours:'En cours', en_attente:'En attente de validation', valide:'Validé', rejete:'Rejeté'};
   tbody.innerHTML = tasksCache.map(t=>{
-    const ext = ensureExt(t.id);
-    const status = computeAlertStatus(t, ext);
+    const status = computeAlertStatus(t);
     return `<tr>
       <td><strong>${t.title}</strong></td>
       <td>${t.deliverable||'—'}</td>
       <td>${t.progress}% complet</td>
-      <td><span class="status-badge ${ext.validationStatus==='valide'?'badge-success':ext.validationStatus==='rejete'?'badge-danger':'badge-neutral'}">${labelFor[ext.validationStatus]||'En cours'}</span></td>
+      <td><span class="status-badge ${t.validation_status==='valide'?'badge-success':t.validation_status==='rejete'?'badge-danger':'badge-neutral'}">${labelFor[t.validation_status]||'En cours'}</span></td>
       <td><div class="signal-row"><span class="pulse ${status.level}"></span>${status.label}</div></td>
     </tr>`;
   }).join('');
@@ -1116,23 +1300,19 @@ function renderEval(){
 function renderValidationQueue(){
   const tbody = document.getElementById('validationTable');
   const empty = document.getElementById('validationEmpty');
-  const pending = tasksCache.filter(t=>{
-    const ext = ensureExt(t.id);
-    return t.progress>=100 && ext.validationStatus!=='valide';
-  });
+  const pending = tasksCache.filter(t => t.progress>=100 && t.validation_status!=='valide');
   document.getElementById('validationCount').style.display = pending.length>0 ? 'inline-flex' : 'none';
   document.getElementById('validationCount').textContent = pending.length;
   if(pending.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
   empty.style.display='none';
   tbody.innerHTML = pending.map(t=>{
-    const ext = ensureExt(t.id);
     const deptName = departmentsMap[t.department_id] || 'Général';
     return `<tr>
       <td><strong>${t.title}</strong></td>
       <td><span class="domain-pill">${deptName}</span></td>
-      <td>${ext.assigneeName||'—'}</td>
+      <td>${t.assignee_name||'—'}</td>
       <td>${t.deliverable||'—'}</td>
-      <td><span class="status-badge ${ext.validationStatus==='rejete'?'badge-danger':'badge-neutral'}">${ext.validationStatus==='rejete'?'Rejeté — à revoir':'En attente'}</span></td>
+      <td><span class="status-badge ${t.validation_status==='rejete'?'badge-danger':'badge-neutral'}">${t.validation_status==='rejete'?'Rejeté — à revoir':'En attente'}</span></td>
       <td style="display:flex;gap:6px;">
         <button class="btn-sm btn-approve" onclick="decideValidation(${t.id},'valide')"><i class="fa-solid fa-check"></i> Valider</button>
         <button class="btn-sm btn-reject" onclick="decideValidation(${t.id},'rejete')"><i class="fa-solid fa-xmark"></i> Rejeter</button>
@@ -1141,16 +1321,17 @@ function renderValidationQueue(){
   }).join('');
 }
 
-function decideValidation(taskId, decision){
-  const ext = ensureExt(taskId);
-  ext.validationStatus = decision;
+async function decideValidation(taskId, decision){
   const task = tasksCache.find(t=>t.id===taskId);
+  if(!task) return;
+  task.validation_status = decision;
+  try{ if(!demoMode) await apiPatch(`/tasks/${taskId}/validate`, {decision}); }catch(e){ /* reste en local si l'API échoue */ }
   if(decision==='valide'){
     pushNotification('green', `Livrable validé : ${task.title}`, `Le superviseur a validé ce livrable.`);
-    sendAlertEmail(ext.assigneeEmail, ext.assigneeName, `[OrbitFlow] Livrable validé — ${task.title}`, `Bonne nouvelle : ton livrable pour "${task.title}" a été validé par le superviseur.`);
+    sendAlertEmail(task.assignee_email, task.assignee_name, `[OrbitFlow] Livrable validé — ${task.title}`, `Bonne nouvelle : ton livrable pour "${task.title}" a été validé par le superviseur.`);
   } else {
     pushNotification('red', `Livrable rejeté : ${task.title}`, `Le superviseur a demandé une révision.`);
-    sendAlertEmail(ext.assigneeEmail, ext.assigneeName, `[OrbitFlow] Révision demandée — ${task.title}`, `Ton livrable pour "${task.title}" a été rejeté et nécessite une révision.`);
+    sendAlertEmail(task.assignee_email, task.assignee_name, `[OrbitFlow] Révision demandée — ${task.title}`, `Ton livrable pour "${task.title}" a été rejeté et nécessite une révision.`);
   }
   renderAll();
 }
@@ -1162,15 +1343,17 @@ function openDelayModal(taskId){
   document.getElementById('delayNewDate').value = '';
   openModal('delayModal');
 }
-document.getElementById('delayForm').addEventListener('submit',(e)=>{
+document.getElementById('delayForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const taskId = parseInt(document.getElementById('delayTaskId').value);
-  const ext = ensureExt(taskId);
-  ext.delayReason = document.getElementById('delayReason').value.trim();
-  const newDate = document.getElementById('delayNewDate').value;
-  if(newDate) ext.newDueDate = newDate;
-  ext.notifiedRed = false;
   const task = tasksCache.find(t=>t.id===taskId);
+  if(!task) return;
+  const reason = document.getElementById('delayReason').value.trim();
+  const newDate = document.getElementById('delayNewDate').value;
+  task.delay_reason = reason;
+  if(newDate) task.new_due_date = newDate;
+  ensureFlags(taskId).notifiedRed = false;
+  try{ if(!demoMode) await apiPatch(`/tasks/${taskId}`, {delay_reason: reason, new_due_date: newDate || null}); }catch(e){ /* reste en local si l'API échoue */ }
   pushNotification('justified', `Retard justifié : ${task.title}`, `Une raison a été enregistrée.`);
   closeModal('delayModal');
   renderAll();
@@ -1234,10 +1417,9 @@ function renderAnalytics(){
   let statusCounts = {'Vert':0,'Jaune':0,'Rouge':0,'Bleu':0,'Violet':0};
   let deptSums={}, deptCounts={};
   tasksCache.forEach(t=>{
-    const ext = ensureExt(t.id);
-    const status = computeAlertStatus(t, ext);
+    const status = computeAlertStatus(t);
     totalProgress += t.progress;
-    if(ext.validationStatus==='valide') completed++;
+    if(t.validation_status==='valide') completed++;
     const map = {green:'Vert', yellow:'Jaune', red:'Rouge', blue:'Bleu', justified:'Violet'};
     statusCounts[map[status.level]]++;
     const deptName = departmentsMap[t.department_id] || 'Général';
@@ -1259,7 +1441,7 @@ function renderHeroStats(){
   document.getElementById('heroStatDomains').textContent = Object.keys(departmentsMap).length;
   const avg = tasksCache.length ? Math.round(tasksCache.reduce((s,t)=>s+t.progress,0)/tasksCache.length) : 0;
   document.getElementById('heroStatRate').textContent = avg+'%';
-  const redCount = tasksCache.filter(t=>computeAlertStatus(t, ensureExt(t.id)).level==='red').length;
+  const redCount = tasksCache.filter(t=>computeAlertStatus(t).level==='red').length;
   document.getElementById('heroStatRed').textContent = redCount;
 }
 
@@ -1306,18 +1488,20 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
   let newTask;
   try{
     if(!demoMode){
-      newTask = await apiPost('/tasks/', {title, department_id, progress, deliverable});
+      newTask = await apiPost('/tasks/', {
+        title, department_id, progress, deliverable,
+        due_date: dueDate || null, assignee_name: assigneeName || null, assignee_email: assigneeEmail || null,
+      });
     } else { throw new Error('demo'); }
   }catch(err){
-    newTask = {id: Date.now(), title, department_id, progress, deliverable};
-    tasksCache.push(newTask);
+    newTask = {
+      id: Date.now(), title, department_id, progress, deliverable,
+      due_date: dueDate || null, new_due_date: null, assignee_name: assigneeName, assignee_email: assigneeEmail,
+      validation_status: 'en_cours', delay_reason: '',
+    };
   }
   if(newTask && !tasksCache.find(t=>t.id===newTask.id)) tasksCache.push(newTask);
-
-  const ext = ensureExt(newTask.id);
-  ext.dueDate = dueDate || null;
-  ext.assigneeName = assigneeName;
-  ext.assigneeEmail = assigneeEmail;
+  ensureFlags(newTask.id);
 
   pushNotification('blue', `Nouvelle tâche : ${title}`, `Assignée à ${assigneeName || 'déterminer'} — échéance ${dueDate ? new Date(dueDate).toLocaleDateString('fr-FR') : 'non fixée'}.`);
   sendAlertEmail(assigneeEmail, assigneeName, `[OrbitFlow] Nouvelle tâche assignée — ${title}`, `Une nouvelle tâche "${title}" t'a été assignée. Échéance : ${dueDate || 'non fixée'}.`);
@@ -1332,25 +1516,107 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
 });
 
 /* ---------------- PRICING / PAYMENT ---------------- */
+const planKeyMap = {'Découverte':'decouverte', 'Business Pro':'business_pro', 'Entreprise':'entreprise'};
+let pendingPlanKey = 'decouverte';
 function selectPlan(name){ activePlan = name; }
 function openPaymentModal(planName, price){
   document.getElementById('modalPlanName').textContent = planName;
   document.getElementById('modalPlanPrice').textContent = `$${price} / mois`;
   openModal('paymentModal');
   activePlan = planName;
+  pendingPlanKey = planKeyMap[planName] || 'business_pro';
 }
 function closePaymentModal(){ closeModal('paymentModal'); }
-document.getElementById('paymentForm').addEventListener('submit', (e)=>{
+document.getElementById('paymentForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
-  alert(`Félicitations ! Votre abonnement ${activePlan} est activé avec succès.`);
-  document.getElementById('currentPlanBadge').textContent = `Plan ${activePlan}`;
-  document.getElementById('currentPlanBadge').style.background = 'linear-gradient(135deg,#12b886,#0a8a5f)';
+  const paymentMethod = document.getElementById('paymentMethodSelect').value;
+  try{
+    if(!demoMode && authToken && currentUser.role==='super_admin'){
+      const result = await apiPost('/billing/subscribe', {plan: pendingPlanKey, payment_method: paymentMethod});
+      currentOrg = result.organization;
+      const planLabel = {decouverte:'Plan Découverte', business_pro:'Plan Business Pro', entreprise:'Plan Entreprise'}[currentOrg.plan];
+      document.getElementById('currentPlanBadge').textContent = planLabel;
+    } else {
+      document.getElementById('currentPlanBadge').textContent = `Plan ${activePlan}`;
+    }
+    document.getElementById('currentPlanBadge').style.background = 'linear-gradient(135deg,#12b886,#0a8a5f)';
+    alert(`Félicitations ! Votre abonnement ${activePlan} est activé avec succès.`);
+  }catch(err){
+    alert(`L'abonnement ${activePlan} a été enregistré côté démonstration (connecte-toi en Super Administrateur pour un encaissement réel).`);
+  }
   closePaymentModal();
+});
+
+/* ---------------- EQUIPE & INVITATIONS ---------------- */
+async function openTeamModal(){
+  openModal('teamModal');
+  document.getElementById('inviteResult').innerHTML = '';
+  if(demoMode || !authToken){
+    document.getElementById('teamList').innerHTML = '<p class="hint">Connecte-toi avec un vrai compte Super Administrateur pour gérer ton équipe (le mode démonstration ne persiste pas les invitations).</p>';
+    return;
+  }
+  try{
+    const team = await apiGet('/auth/team');
+    document.getElementById('teamList').innerHTML = team.map(m => `
+      <div class="team-row">
+        <div><strong>${m.name}</strong><br><span style="color:var(--text-muted);font-size:.78rem;">${m.email} · ${roleLabels[m.role]||m.role}</span></div>
+        <span class="status-badge ${m.status==='actif'?'badge-success':'badge-warning'}">${m.status}</span>
+      </div>`).join('') || '<p class="hint">Aucun membre pour le moment.</p>';
+  }catch(e){
+    document.getElementById('teamList').innerHTML = '<p class="hint">Impossible de charger l\'équipe pour le moment.</p>';
+  }
+}
+
+document.getElementById('inviteForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = document.getElementById('inviteEmailInput').value.trim();
+  const role = document.getElementById('inviteRoleInput').value;
+  const resultEl = document.getElementById('inviteResult');
+  if(demoMode || !authToken){
+    resultEl.innerHTML = '<p class="hint" style="color:var(--s-red);">Connecte-toi avec un compte réel pour envoyer des invitations.</p>';
+    return;
+  }
+  try{
+    const data = await apiPost('/auth/invite', {invites:[{email, role}]});
+    const entry = data.invites[0];
+    if(entry.status === 'invité'){
+      const link = `${location.origin}${location.pathname}?invite=${entry.invite_token}`;
+      resultEl.innerHTML = `
+        <p class="hint" style="color:var(--s-green);margin-top:12px;">Invitation créée pour ${email}. Partage ce lien (par e-mail, Slack, etc.) :</p>
+        <div class="invite-link-box"><input type="text" readonly value="${link}" onclick="this.select()"><i class="fa-solid fa-copy" style="cursor:pointer;" onclick="navigator.clipboard.writeText('${link}')"></i></div>`;
+    } else {
+      resultEl.innerHTML = `<p class="hint" style="color:var(--s-yellow);">${email} a déjà un compte dans l'organisation.</p>`;
+    }
+    document.getElementById('inviteEmailInput').value = '';
+    openTeamModal();
+  }catch(err){
+    resultEl.innerHTML = '<p class="hint" style="color:var(--s-red);">Impossible de créer l\'invitation pour le moment.</p>';
+  }
+});
+
+/* ---------------- FEEDBACK / AVIS ---------------- */
+document.querySelectorAll('.star-input').forEach(star=>{
+  star.addEventListener('click', ()=>{
+    selectedStarRating = parseInt(star.dataset.v);
+    document.querySelectorAll('.star-input').forEach(s=>{
+      s.classList.toggle('active', parseInt(s.dataset.v) <= selectedStarRating);
+    });
+  });
+});
+document.getElementById('feedbackForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const message = document.getElementById('feedbackMessage').value.trim();
+  if(!message) return;
+  try{
+    if(!demoMode && authToken){ await apiPost('/feedback/', {message, rating: selectedStarRating}); }
+  }catch(err){ /* on remercie quand même l'utilisateur, l'avis reste utile même non transmis */ }
+  document.getElementById('feedbackMessage').value = '';
+  pushNotification('green', 'Merci pour ton avis !', 'Ton retour aide à améliorer OrbitFlow.');
 });
 
 /* ---------------- EXPORT / IMPORT ---------------- */
 function exportData(){
-  const payload = { departmentsMap, tasksCache, extendedTaskData, dailyJournal, emailConfig, exportedAt:new Date().toISOString() };
+  const payload = { departmentsMap, tasksCache, dailyJournal, emailConfig, exportedAt:new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1367,7 +1633,6 @@ function importData(event){
       const data = JSON.parse(e.target.result);
       departmentsMap = data.departmentsMap || departmentsMap;
       tasksCache = data.tasksCache || tasksCache;
-      extendedTaskData = data.extendedTaskData || extendedTaskData;
       dailyJournal = data.dailyJournal || dailyJournal;
       emailConfig = data.emailConfig || emailConfig;
       demoMode = false;
@@ -1381,6 +1646,8 @@ function importData(event){
 
 /* ---------------- INIT ---------------- */
 document.addEventListener('DOMContentLoaded', async ()=>{
+  checkInviteInUrl();
+  demoMode = true; // affichage de démonstration en arrière-plan tant que personne n'est connecté
   await loadDepartments();
   await loadTasks();
   setInterval(()=>computeAllStatuses(false), 60000); // vérifie les échéances chaque minute pendant que la page est ouverte
@@ -1388,4 +1655,5 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 </script>
 </body>
 </html>
+
 
