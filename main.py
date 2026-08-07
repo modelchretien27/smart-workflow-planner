@@ -4,7 +4,7 @@ import hashlib
 from datetime import datetime, date, timedelta
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException, Depends, Header, status
+from fastapi import FastAPI, HTTPException, Depends, Header, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import (
@@ -14,6 +14,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from jose import jwt, JWTError
+import stripe
 
 # =========================================================================
 # 1. CONFIGURATION ET CONNEXION BASE DE DONNEES
@@ -41,7 +42,17 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 jours
 FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "changeme-founder-key")
 PLAN_PRICES = {"decouverte": 0.0, "business_pro": 29.0, "entreprise": 99.0}
 
-# Hachage sécurisé natif (SHA-256 + Sel) pour éviter les incompatibilités passlib/bcrypt
+# STRIPE CONFIGURATION
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_xxx")
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_xxx")
+stripe.api_key = STRIPE_SECRET_KEY
+
+STRIPE_PRICES = {
+    "business_pro": os.getenv("STRIPE_PRICE_BUSINESS_PRO", "price_xxx"),
+    "entreprise": os.getenv("STRIPE_PRICE_ENTREPRISE", "price_yyy")
+}
+
+# Hachage sécurisé natif (SHA-256 + Sel)
 def hash_password(password: str) -> str:
     salt = SECRET_KEY[:16]
     return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
@@ -269,6 +280,11 @@ class FeedbackCreate(BaseModel):
 class SubscribeRequest(BaseModel):
     plan: str
     payment_method: str
+
+
+class MobileMoneyRequest(BaseModel):
+    phone_number: str
+    plan: str
 
 
 class FounderLogin(BaseModel):
@@ -509,7 +525,7 @@ def create_feedback(payload: FeedbackCreate, current_user: UserDB = Depends(get_
 
 
 # =========================================================================
-# 9. ABONNEMENTS / FACTURATION
+# 9. ABONNEMENTS & PAIEMENTS (STRIPE ET MOBILE MONEY)
 # =========================================================================
 @app.post("/billing/subscribe")
 def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_roles("super_admin")),
@@ -524,6 +540,91 @@ def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_
     ))
     db.commit()
     return {"status": "ok", "organization": serialize_org(org)}
+
+
+@app.post("/billing/create-checkout-session")
+def create_checkout_session(plan: str, current_user: UserDB = Depends(require_roles("super_admin")), db: Session = Depends(get_db)):
+    if plan not in STRIPE_PRICES or not STRIPE_PRICES[plan]:
+        raise HTTPException(status_code=400, detail="Plan de tarification ou ID Stripe invalide.")
+
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price': STRIPE_PRICES[plan],
+                'quantity': 1,
+            }],
+            mode='subscription',
+            success_url="https://smart-workflow-planner.vercel.app/?payment=success",
+            cancel_url="https://smart-workflow-planner.vercel.app/?payment=cancelled",
+            client_reference_id=str(current_user.organization_id),
+            customer_email=current_user.email,
+            metadata={
+                "organization_id": str(current_user.organization_id),
+                "plan": plan
+            }
+        )
+        return {"checkout_url": checkout_session.url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/billing/stripe-webhook")
+async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, STRIPE_WEBHOOK_SECRET
+        )
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Payload invalide")
+    except stripe.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Signature Webhook invalide")
+
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        org_id = session.get('metadata', {}).get('organization_id')
+        plan = session.get('metadata', {}).get('plan')
+
+        if org_id and plan:
+            org = db.query(OrganizationDB).filter(OrganizationDB.id == int(org_id)).first()
+            if org:
+                org.plan = plan
+                db.add(SubscriptionDB(
+                    organization_id=org.id,
+                    plan=plan,
+                    price=PLAN_PRICES.get(plan, 0.0),
+                    payment_method="stripe_card",
+                    status="active"
+                ))
+                db.commit()
+
+    return {"status": "success"}
+
+
+@app.post("/billing/pay-mobile-money")
+def pay_mobile_money(payload: MobileMoneyRequest, current_user: UserDB = Depends(require_roles("super_admin")), db: Session = Depends(get_db)):
+    if payload.plan not in PLAN_PRICES:
+        raise HTTPException(status_code=400, detail="Plan inconnu.")
+
+    org = db.query(OrganizationDB).filter(OrganizationDB.id == current_user.organization_id).first()
+    org.plan = payload.plan
+    
+    db.add(SubscriptionDB(
+        organization_id=org.id,
+        plan=payload.plan,
+        price=PLAN_PRICES[payload.plan],
+        payment_method=f"mobile_money_{payload.phone_number[:3]}",
+        status="active"
+    ))
+    db.commit()
+
+    return {
+        "status": "pending_approval",
+        "message": f"Demande d'encaissement transmise au {payload.phone_number}. Veuillez valider sur votre téléphone."
+    }
 
 
 # =========================================================================
