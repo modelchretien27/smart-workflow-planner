@@ -9,6 +9,7 @@
 <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <style>
 :root{
   --primary:#0c1220;
@@ -228,6 +229,19 @@ tr:last-child td{border-bottom:none;}
 .badge-neutral{background:#eef1f6;color:#5b6478;}
 
 .deliverable-tag{display:inline-flex;align-items:center;gap:6px;background:#f1f4fa;border:1px solid #dde3ef;padding:3px 9px;border-radius:6px;font-size:.78rem;color:#475569;}
+.chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.chip{display:inline-flex;align-items:center;gap:7px;background:#eef2fb;border:1px solid #d7e3ff;color:var(--accent-dark);padding:4px 6px 4px 10px;border-radius:20px;font-size:.78rem;}
+.chip .rm{cursor:pointer;color:#9fb0d3;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+.chip .rm:hover{background:#dbe6fd;color:var(--accent-dark);}
+.checklist-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1f4fa;}
+.checklist-item:last-child{border-bottom:none;}
+.checklist-item .cl-text{flex:1;font-size:.86rem;}
+.checklist-item.done .cl-text{text-decoration:line-through;color:var(--text-muted);}
+.progress-mini{font-size:.72rem;color:var(--text-muted);margin:6px 0 10px;}
+.task-title-link{cursor:pointer;}
+.task-title-link:hover{color:var(--accent);text-decoration:underline;}
+.filter-row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:16px;}
+.filter-row .form-group{margin-bottom:0;min-width:150px;}
 
 .domain-pill{display:inline-flex;align-items:center;gap:6px;background:#0c1220;color:#fff;padding:4px 11px;border-radius:20px;font-size:.72rem;font-weight:700;}
 
@@ -409,6 +423,44 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
     <div id="inviteResult"></div>
     <h4 style="margin:20px 0 6px;font-size:.9rem;color:var(--primary);">Membres de l'organisation</h4>
     <div id="teamList"></div>
+  </div>
+</div>
+
+<!-- ============ MODAL: EDITION / DETAIL TACHE ============ -->
+<div id="taskEditModal" class="modal">
+  <div class="modal-content wide">
+    <span class="close-modal" onclick="closeModal('taskEditModal')">&times;</span>
+    <h3 style="margin-top:0;"><i class="fa-solid fa-pen-to-square" style="color:var(--accent);"></i> Modifier la tâche</h3>
+    <p class="hint" id="editTaskCreatedAt" style="margin:-8px 0 16px;"></p>
+    <form id="taskEditForm">
+      <input type="hidden" id="editTaskId">
+      <div class="form-group"><label>Intitulé de la tâche</label><input type="text" id="editTaskTitle" required></div>
+      <div class="two-col">
+        <div class="form-group">
+          <label>Domaine</label>
+          <select id="editTaskDept" required></select>
+        </div>
+        <div class="form-group"><label>Échéance</label><input type="date" id="editTaskDueDate"></div>
+      </div>
+      <div class="two-col">
+        <div class="form-group"><label>Nom de l'employé assigné</label><input type="text" id="editTaskAssigneeName"></div>
+        <div class="form-group"><label>E-mail de l'employé</label><input type="email" id="editTaskAssigneeEmail"></div>
+      </div>
+      <div class="form-group">
+        <label>Livrables & avancement</label>
+        <div class="hint" style="margin-top:-2px;margin-bottom:8px;">Coche un livrable dès qu'il est réellement fourni : la progression se met à jour toute seule.</div>
+        <div id="editTaskChecklist"></div>
+        <div class="progress-mini" id="editTaskProgressLabel"></div>
+        <div class="add-journal-row" style="margin-top:0;">
+          <input type="text" id="editTaskNewDeliverable" placeholder="Ajouter un livrable..." onkeydown="if(event.key==='Enter'){event.preventDefault();addEditDeliverable();}">
+          <button type="button" class="btn-secondary" style="width:auto;" onclick="addEditDeliverable()"><i class="fa-solid fa-plus"></i></button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px;">
+        <button type="submit" class="btn-primary">Enregistrer les modifications</button>
+        <button type="button" class="btn-sm btn-reject" style="padding:11px 18px;" onclick="deleteCurrentEditTask()"><i class="fa-solid fa-trash"></i> Supprimer la tâche</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -614,7 +666,8 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
             <div class="two-col">
               <div class="form-group">
                 <label>Domaine assigné</label>
-                <select id="taskDept" required><option value="">-- Sélectionner --</option></select>
+                <select id="taskDept" onchange="handleTaskDeptChange()" required><option value="">-- Sélectionner --</option></select>
+                <input type="text" id="taskNewDeptInput" placeholder="Nom du nouveau domaine" style="display:none;margin-top:8px;">
               </div>
               <div class="form-group">
                 <label>Échéance</label>
@@ -632,12 +685,13 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
               </div>
             </div>
             <div class="form-group">
-              <label>Livrable attendu</label>
-              <input type="text" id="taskDeliverable" placeholder="ex: Rapport PDF signé + feuille Excel">
-            </div>
-            <div class="form-group">
-              <label>Avancement actuel (%)</label>
-              <input type="number" id="taskProgress" min="0" max="100" value="0" required>
+              <label>Livrables attendus</label>
+              <div class="hint" style="margin-top:-2px;margin-bottom:8px;">La progression (%) sera calculée automatiquement selon les livrables cochés comme faits — plus besoin de la saisir à la main.</div>
+              <div id="newTaskDeliverables"></div>
+              <div class="add-journal-row" style="margin-top:0;">
+                <input type="text" id="taskDeliverableInput" placeholder="ex: Rapport PDF signé" onkeydown="if(event.key==='Enter'){event.preventDefault();addNewTaskDeliverable();}">
+                <button type="button" class="btn-secondary" style="width:auto;" onclick="addNewTaskDeliverable()"><i class="fa-solid fa-plus"></i></button>
+              </div>
             </div>
             <button type="submit" class="btn-primary">Enregistrer la tâche</button>
           </form>
@@ -647,11 +701,11 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       <div>
         <div class="card">
           <h2><i class="fa-solid fa-table-columns"></i> Matrice générale des activités</h2>
-          <p class="card-desc">Vue consolidée de toutes les tâches, tous domaines confondus, avec leur statut d'urgence en temps réel.</p>
+          <p class="card-desc">Vue consolidée de toutes les tâches, tous domaines confondus, avec leur statut d'urgence en temps réel. Clique sur une tâche pour l'éditer, cocher ses livrables ou la supprimer.</p>
           <div class="table-responsive">
             <table>
-              <thead><tr><th>Domaine / Tâche</th><th>Assigné à</th><th>Échéance</th><th>Progression</th><th>Statut</th><th>Action</th></tr></thead>
-              <tbody id="mainTaskTable"><tr><td colspan="6" style="text-align:center;color:var(--text-muted);">Chargement…</td></tr></tbody>
+              <thead><tr><th>Domaine / Tâche</th><th>Créée le</th><th>Assigné à</th><th>Échéance</th><th>Progression</th><th>Statut</th><th>Action</th></tr></thead>
+              <tbody id="mainTaskTable"><tr><td colspan="7" style="text-align:center;color:var(--text-muted);">Chargement…</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -664,22 +718,54 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
     <div class="card">
       <div class="journal-header">
         <div>
-          <h2 style="border:none;padding:0;margin:0;"><i class="fa-solid fa-calendar-day"></i> Mon cahier de charge du jour</h2>
-          <p class="card-desc" style="margin-top:4px;">Une liste personnelle, séparée de la planification formelle — pour ne rien oublier aujourd'hui.</p>
+          <h2 style="border:none;padding:0;margin:0;"><i class="fa-solid fa-calendar-day"></i> Mon cahier de charge</h2>
+          <p class="card-desc" style="margin-top:4px;">Une liste personnelle, séparée de la planification formelle — pour ne rien oublier aujourd'hui ou planifier les prochains jours.</p>
         </div>
-        <div class="journal-date mono" id="journalDateDisplay">--</div>
+        <div style="text-align:right;">
+          <div class="journal-date mono" id="journalDateDisplay">--</div>
+          <select id="journalCycleSelect" onchange="changeJournalCycle()" style="margin-top:8px;width:auto;font-size:.78rem;padding:6px 10px;">
+            <option value="daily">Réinitialisation quotidienne</option>
+            <option value="3days">Réinitialisation tous les 3 jours</option>
+            <option value="weekly">Réinitialisation hebdomadaire</option>
+          </select>
+        </div>
       </div>
       <div class="journal-progress-bar"><div class="journal-progress-fill" id="journalProgressFill" style="width:0%;"></div></div>
-      <div class="add-journal-row">
-        <input type="text" id="journalNewItem" placeholder="ex: Répondre aux e-mails clients avant 11h">
+      <div class="filter-row" style="margin-top:14px;">
+        <div class="form-group" style="flex:1;min-width:220px;">
+          <label>Nouvelle tâche</label>
+          <input type="text" id="journalNewItem" placeholder="ex: Répondre aux e-mails clients avant 11h">
+        </div>
+        <div class="form-group">
+          <label>Date de programmation</label>
+          <input type="date" id="journalItemDate">
+        </div>
         <button class="btn-primary" style="width:auto;" onclick="addJournalItem()"><i class="fa-solid fa-plus"></i> Ajouter</button>
       </div>
       <ul class="journal-list" id="journalList" style="margin-top:16px;"></ul>
       <div id="journalEmpty" class="empty-state" style="display:none;">
         <i class="fa-solid fa-mug-hot"></i>
-        Aucune tâche pour aujourd'hui. Ajoute ta première ligne du cahier de charge ci-dessus.
+        Rien de programmé pour cette période. Ajoute ta première ligne du cahier de charge ci-dessus.
+      </div>
+      <div class="export-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
+        <button class="btn-secondary" onclick="exportJournalCSV()"><i class="fa-solid fa-file-csv"></i> Exporter en CSV</button>
+        <button class="btn-secondary" onclick="exportJournalExcel()"><i class="fa-solid fa-file-excel"></i> Exporter en Excel</button>
       </div>
     </div>
+
+    <div class="card">
+      <h2 style="border:none;padding:0;"><i class="fa-solid fa-clock-rotate-left"></i> Historique — consulter une période passée</h2>
+      <p class="card-desc">Retrouve les cahiers de charge archivés d'une journée, d'un cycle de 3 jours ou d'une semaine précédente.</p>
+      <div class="filter-row">
+        <div class="form-group"><label>Choisir une date dans la période à consulter</label><input type="date" id="journalHistoryDate"></div>
+        <button class="btn-secondary" onclick="viewJournalHistory()">Consulter</button>
+      </div>
+      <ul class="journal-list" id="journalHistoryList"></ul>
+      <div id="journalHistoryEmpty" class="empty-state" style="display:none;">
+        <i class="fa-solid fa-box-archive"></i> Rien d'archivé pour cette période.
+      </div>
+    </div>
+
     <div class="card" style="background:#f9fafc;border-style:dashed;">
       <h2 style="border:none;padding:0;"><i class="fa-solid fa-download"></i> Sauvegarde des données</h2>
       <p class="card-desc">Le journal quotidien et les tâches vivent en mémoire le temps de la session. Exporte régulièrement
@@ -701,12 +787,23 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       <p class="card-desc">Les tâches passées à 100% attendent ici l'approbation du superviseur avant d'être considérées comme livrées.</p>
       <div class="table-responsive">
         <table>
-          <thead><tr><th>Tâche</th><th>Domaine</th><th>Assigné à</th><th>Livrable</th><th>Statut</th><th>Décision</th></tr></thead>
+          <thead><tr><th>Tâche</th><th>Domaine</th><th>Assigné à</th><th>Livrables</th><th>Statut</th><th>Décision</th></tr></thead>
           <tbody id="validationTable"></tbody>
         </table>
       </div>
       <div id="validationEmpty" class="empty-state" style="display:none;">
         <i class="fa-solid fa-circle-check"></i> Aucune tâche en attente de validation pour le moment.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2><i class="fa-solid fa-eye"></i> Suivi en direct de toutes les tâches actives</h2>
+      <p class="card-desc">Vue de pilotage pour le superviseur : toutes les tâches non encore validées, quel que soit leur avancement. Clique sur une tâche pour l'ouvrir et cocher ses livrables.</p>
+      <div class="table-responsive">
+        <table>
+          <thead><tr><th>Tâche</th><th>Créée le</th><th>Progression</th><th>Statut</th><th>Livrables</th></tr></thead>
+          <tbody id="validationLiveTable"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -715,9 +812,15 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   <div id="weekly" class="tab-content">
     <div class="card">
       <h2><i class="fa-solid fa-calendar-week"></i> Planning hebdomadaire des livrables</h2>
+      <p class="card-desc">Synchronisé avec la planification par domaine. Filtre par échéance pour revoir une période précise.</p>
+      <div class="filter-row">
+        <div class="form-group"><label>Du</label><input type="date" id="weeklyFilterFrom" onchange="renderWeekly()"></div>
+        <div class="form-group"><label>Au</label><input type="date" id="weeklyFilterTo" onchange="renderWeekly()"></div>
+        <button class="btn-secondary" onclick="document.getElementById('weeklyFilterFrom').value='';document.getElementById('weeklyFilterTo').value='';renderWeekly();">Réinitialiser</button>
+      </div>
       <div class="table-responsive">
         <table>
-          <thead><tr><th>Domaine</th><th>Tâche</th><th>Livrable cible</th><th>Échéance</th><th>Avancement</th></tr></thead>
+          <thead><tr><th>Domaine</th><th>Tâche</th><th>Créée le</th><th>Échéance</th><th>Avancement</th><th>Statut</th></tr></thead>
           <tbody id="weeklyTaskTable"></tbody>
         </table>
       </div>
@@ -728,9 +831,10 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   <div id="eval" class="tab-content">
     <div class="card">
       <h2><i class="fa-solid fa-award"></i> Évaluation et validation des performances</h2>
+      <p class="card-desc">Évaluation directe des activités planifiées par domaine — synchronisée en temps réel avec la matrice de planification.</p>
       <div class="table-responsive">
         <table>
-          <thead><tr><th>Tâche</th><th>Livrables soumis</th><th>Taux de réalisation</th><th>Statut de validation</th><th>Appréciation</th></tr></thead>
+          <thead><tr><th>Tâche</th><th>Créée le</th><th>Livrables</th><th>Taux de réalisation</th><th>Statut</th><th>Assigné à</th></tr></thead>
           <tbody id="evalTaskTable"></tbody>
         </table>
       </div>
@@ -1181,11 +1285,21 @@ function seedDemoData(){
   const in2 = new Date(Date.now()+2*86400000).toISOString().slice(0,10);
   const in10 = new Date(Date.now()+10*86400000).toISOString().slice(0,10);
   const past = new Date(Date.now()-3*86400000).toISOString().slice(0,10);
+  const dl = (text, done) => ({id:'d'+Math.random().toString(36).slice(2), text, done});
+  const createdAgo = (days) => new Date(Date.now()-days*86400000).toISOString();
   tasksCache = [
-    {id:101, title:'Audit trimestriel des comptes', department_id:1, progress:70, deliverable:'Rapport PDF signé', due_date:in2, assignee_name:'Jean Mballa', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null},
-    {id:102, title:'Campagne de recrutement Q3', department_id:2, progress:30, deliverable:'Short-list de 5 candidats', due_date:in10, assignee_name:'Awa Ngono', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null},
-    {id:103, title:'Optimisation de la chaîne logistique', department_id:3, progress:100, deliverable:'Note de synthèse', due_date:past, assignee_name:'Paul Etoundi', assignee_email:'', validation_status:'en_attente', delay_reason:'', new_due_date:null},
-    {id:104, title:'Clôture budgétaire annuelle', department_id:1, progress:10, deliverable:'Tableau Excel consolidé', due_date:past, assignee_name:'Sarah Biya', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null},
+    {id:101, title:'Audit trimestriel des comptes', department_id:1,
+      deliverables:[dl('Rapport PDF signé', true), dl('Feuille Excel consolidée', false), dl('Note de synthèse pour la direction', false)],
+      progress:33, due_date:in2, assignee_name:'Jean Mballa', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null, created_at:createdAgo(5)},
+    {id:102, title:'Campagne de recrutement Q3', department_id:2,
+      deliverables:[dl('Short-list de 5 candidats', false), dl("Grille d'entretien validée", false)],
+      progress:0, due_date:in10, assignee_name:'Awa Ngono', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null, created_at:createdAgo(2)},
+    {id:103, title:'Optimisation de la chaîne logistique', department_id:3,
+      deliverables:[dl('Note de synthèse', true)],
+      progress:100, due_date:past, assignee_name:'Paul Etoundi', assignee_email:'', validation_status:'en_attente', delay_reason:'', new_due_date:null, created_at:createdAgo(9)},
+    {id:104, title:'Clôture budgétaire annuelle', department_id:1,
+      deliverables:[dl('Tableau Excel consolidé', false), dl('Validation du DAF', false), dl('Archivage comptable', false)],
+      progress:0, due_date:past, assignee_name:'Sarah Biya', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null, created_at:createdAgo(12)},
   ];
 }
 
@@ -1198,13 +1312,48 @@ async function loadDepartments(){
   }catch(e){
     if(Object.keys(departmentsMap).length===0) seedDemoData();
   }
-  const select = document.getElementById('taskDept');
+  populateDeptSelect(document.getElementById('taskDept'));
+  populateDeptSelect(document.getElementById('editTaskDept'));
+  document.getElementById('kpiDepts').textContent = Object.keys(departmentsMap).length;
+  document.getElementById('heroStatDomains').textContent = Object.keys(departmentsMap).length;
+}
+
+function populateDeptSelect(select){
+  if(!select) return;
+  const current = select.value;
   select.innerHTML = '<option value="">-- Sélectionner un domaine --</option>';
   Object.entries(departmentsMap).forEach(([id,name])=>{
     const opt = document.createElement('option'); opt.value=id; opt.textContent=name; select.appendChild(opt);
   });
-  document.getElementById('kpiDepts').textContent = Object.keys(departmentsMap).length;
-  document.getElementById('heroStatDomains').textContent = Object.keys(departmentsMap).length;
+  const newOpt = document.createElement('option');
+  newOpt.value = '__new__'; newOpt.textContent = '+ Nouveau domaine...';
+  select.appendChild(newOpt);
+  if(current && [...select.options].some(o=>o.value===current)) select.value = current;
+}
+
+function handleTaskDeptChange(){
+  const select = document.getElementById('taskDept');
+  const input = document.getElementById('taskNewDeptInput');
+  input.style.display = select.value === '__new__' ? 'block' : 'none';
+}
+
+async function resolveDepartmentId(select, newInput){
+  if(select.value !== '__new__') return parseInt(select.value) || null;
+  const name = newInput.value.trim();
+  if(!name) return null;
+  try{
+    if(!demoMode){
+      const dept = await apiPost('/departments/', {name});
+      departmentsMap[dept.id] = dept.name;
+      await loadDepartments();
+      return dept.id;
+    }
+  }catch(e){ /* repli local ci-dessous */ }
+  const id = Date.now();
+  departmentsMap[id] = name;
+  populateDeptSelect(document.getElementById('taskDept'));
+  populateDeptSelect(document.getElementById('editTaskDept'));
+  return id;
 }
 
 async function loadTasks(){
@@ -1231,6 +1380,24 @@ function renderDemoBanner(){
 function badgeClassFor(level){
   return {blue:'badge-info', green:'badge-success', yellow:'badge-warning', red:'badge-danger', justified:'badge-justified'}[level];
 }
+function formatDateTime(iso){
+  if(!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('fr-FR') + ' à ' + d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+function deliverablesSummary(t){
+  const items = t.deliverables || [];
+  if(items.length===0) return 'Aucun livrable défini';
+  const done = items.filter(d=>d.done).length;
+  return `${done}/${items.length} livrable${items.length>1?'s':''} fourni${done>1?'s':''}`;
+}
+/** Statut simplifié à 3 valeurs pour Évaluation & Livrables, tel que demandé. */
+function evalStatus(t){
+  if(t.validation_status==='valide') return {key:'valide', label:'Validé', cls:'badge-success'};
+  const level = computeAlertStatus(t).level;
+  if(level==='red' || level==='justified') return {key:'retard', label:'En retard', cls:'badge-danger'};
+  return {key:'en_cours', label:'En cours', cls:'badge-info'};
+}
 
 function renderAll(){
   renderMatrix();
@@ -1245,18 +1412,19 @@ function renderAll(){
 function renderMatrix(){
   const tbody = document.getElementById('mainTaskTable');
   if(tasksCache.length===0){
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucune tâche configurée.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Aucune tâche configurée.</td></tr>';
     return;
   }
-  tbody.innerHTML = tasksCache.map(t=>{
+  const sorted = [...tasksCache].sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+  tbody.innerHTML = sorted.map(t=>{
     const status = computeAlertStatus(t);
     const deptName = departmentsMap[t.department_id] || 'Général';
-    const deliverableText = t.deliverable || 'Document de synthèse / Validation';
     const dueLabel = t.due_date ? new Date(t.due_date).toLocaleDateString('fr-FR') : '—';
     const canJustify = status.level === 'red';
     return `
       <tr>
-        <td><span class="domain-pill">${deptName}</span><br><strong style="display:inline-block;margin-top:6px;">${t.title}</strong><br><span class="deliverable-tag" style="margin-top:6px;"><i class="fa-solid fa-file-contract"></i> ${deliverableText}</span></td>
+        <td><span class="domain-pill">${deptName}</span><br><strong class="task-title-link" style="display:inline-block;margin-top:6px;" onclick="openTaskEditModal(${t.id})">${t.title}</strong><br><span class="deliverable-tag" style="margin-top:6px;"><i class="fa-solid fa-file-contract"></i> ${deliverablesSummary(t)}</span></td>
+        <td class="mono" style="font-size:.76rem;">${formatDateTime(t.created_at)}</td>
         <td>${t.assignee_name ? t.assignee_name : '<span style="color:var(--text-muted);">Non assigné</span>'}</td>
         <td class="mono">${dueLabel}</td>
         <td>
@@ -1266,59 +1434,109 @@ function renderMatrix(){
           </div>
         </td>
         <td><div class="signal-row"><span class="pulse ${status.level}"></span><span class="status-badge ${badgeClassFor(status.level)}">${status.label}</span></div></td>
-        <td>${canJustify ? `<button class="btn-sm btn-ghost" onclick="openDelayModal(${t.id})">Justifier</button>` : '—'}</td>
+        <td style="display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn-sm btn-ghost" onclick="openTaskEditModal(${t.id})"><i class="fa-solid fa-pen"></i></button>
+          ${canJustify ? `<button class="btn-sm btn-ghost" onclick="openDelayModal(${t.id})">Justifier</button>` : ''}
+          <button class="btn-sm btn-reject" onclick="quickDeleteTask(${t.id})"><i class="fa-solid fa-trash"></i></button>
+        </td>
       </tr>`;
   }).join('');
 }
 
 function renderWeekly(){
   const tbody = document.getElementById('weeklyTaskTable');
-  if(tasksCache.length===0){ tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune tâche.</td></tr>'; return; }
-  tbody.innerHTML = tasksCache.map(t=>{
+  const fromVal = document.getElementById('weeklyFilterFrom')?.value;
+  const toVal = document.getElementById('weeklyFilterTo')?.value;
+  let list = [...tasksCache];
+  if(fromVal) list = list.filter(t => t.due_date && t.due_date >= fromVal);
+  if(toVal) list = list.filter(t => t.due_date && t.due_date <= toVal);
+  list.sort((a,b)=> (a.due_date||'9999').localeCompare(b.due_date||'9999'));
+  if(list.length===0){ tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucune tâche sur cette période.</td></tr>'; return; }
+  tbody.innerHTML = list.map(t=>{
+    const status = computeAlertStatus(t);
     const deptName = departmentsMap[t.department_id] || 'Général';
     const dueLabel = t.due_date ? new Date(t.due_date).toLocaleDateString('fr-FR') : '—';
-    return `<tr><td><span class="domain-pill">${deptName}</span></td><td><strong>${t.title}</strong></td><td>${t.deliverable||'—'}</td><td class="mono">${dueLabel}</td><td><strong>${t.progress}%</strong></td></tr>`;
+    return `<tr>
+      <td><span class="domain-pill">${deptName}</span></td>
+      <td><strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong></td>
+      <td class="mono" style="font-size:.76rem;">${formatDateTime(t.created_at)}</td>
+      <td class="mono">${dueLabel}</td>
+      <td>
+        <div class="progress-wrapper">
+          <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${t.progress}%;background-color:var(--s-${status.level==='justified'?'justified':status.level});"></div></div>
+          <span style="font-weight:700;font-size:.8rem;">${t.progress}%</span>
+        </div>
+      </td>
+      <td><div class="signal-row"><span class="pulse ${status.level}"></span><span class="status-badge ${badgeClassFor(status.level)}">${status.label}</span></div></td>
+    </tr>`;
   }).join('');
 }
 
 function renderEval(){
   const tbody = document.getElementById('evalTaskTable');
-  if(tasksCache.length===0){ tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Aucune tâche.</td></tr>'; return; }
-  const labelFor = {en_cours:'En cours', en_attente:'En attente de validation', valide:'Validé', rejete:'Rejeté'};
-  tbody.innerHTML = tasksCache.map(t=>{
-    const status = computeAlertStatus(t);
+  if(tasksCache.length===0){ tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;">Aucune tâche.</td></tr>'; return; }
+  const sorted = [...tasksCache].sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+  tbody.innerHTML = sorted.map(t=>{
+    const ev = evalStatus(t);
     return `<tr>
-      <td><strong>${t.title}</strong></td>
-      <td>${t.deliverable||'—'}</td>
+      <td><strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong><br><span style="font-size:.72rem;color:var(--text-muted);">${departmentsMap[t.department_id]||'Général'}</span></td>
+      <td class="mono" style="font-size:.76rem;">${formatDateTime(t.created_at)}</td>
+      <td>${deliverablesSummary(t)}</td>
       <td>${t.progress}% complet</td>
-      <td><span class="status-badge ${t.validation_status==='valide'?'badge-success':t.validation_status==='rejete'?'badge-danger':'badge-neutral'}">${labelFor[t.validation_status]||'En cours'}</span></td>
-      <td><div class="signal-row"><span class="pulse ${status.level}"></span>${status.label}</div></td>
+      <td><span class="status-badge ${ev.cls}">${ev.label}</span></td>
+      <td>${t.assignee_name||'—'}</td>
     </tr>`;
   }).join('');
 }
 
 function renderValidationQueue(){
-  const tbody = document.getElementById('validationTable');
+  const pendingTbody = document.getElementById('validationTable');
   const empty = document.getElementById('validationEmpty');
   const pending = tasksCache.filter(t => t.progress>=100 && t.validation_status!=='valide');
   document.getElementById('validationCount').style.display = pending.length>0 ? 'inline-flex' : 'none';
   document.getElementById('validationCount').textContent = pending.length;
-  if(pending.length===0){ tbody.innerHTML=''; empty.style.display='block'; return; }
-  empty.style.display='none';
-  tbody.innerHTML = pending.map(t=>{
-    const deptName = departmentsMap[t.department_id] || 'Général';
-    return `<tr>
-      <td><strong>${t.title}</strong></td>
-      <td><span class="domain-pill">${deptName}</span></td>
-      <td>${t.assignee_name||'—'}</td>
-      <td>${t.deliverable||'—'}</td>
-      <td><span class="status-badge ${t.validation_status==='rejete'?'badge-danger':'badge-neutral'}">${t.validation_status==='rejete'?'Rejeté — à revoir':'En attente'}</span></td>
-      <td style="display:flex;gap:6px;">
-        <button class="btn-sm btn-approve" onclick="decideValidation(${t.id},'valide')"><i class="fa-solid fa-check"></i> Valider</button>
-        <button class="btn-sm btn-reject" onclick="decideValidation(${t.id},'rejete')"><i class="fa-solid fa-xmark"></i> Rejeter</button>
-      </td>
-    </tr>`;
-  }).join('');
+  if(pending.length===0){ pendingTbody.innerHTML=''; empty.style.display='block'; }
+  else{
+    empty.style.display='none';
+    pendingTbody.innerHTML = pending.map(t=>{
+      const deptName = departmentsMap[t.department_id] || 'Général';
+      return `<tr>
+        <td><strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong></td>
+        <td><span class="domain-pill">${deptName}</span></td>
+        <td>${t.assignee_name||'—'}</td>
+        <td>${deliverablesSummary(t)}</td>
+        <td><span class="status-badge ${t.validation_status==='rejete'?'badge-danger':'badge-neutral'}">${t.validation_status==='rejete'?'Rejeté — à revoir':'En attente'}</span></td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn-sm btn-approve" onclick="decideValidation(${t.id},'valide')"><i class="fa-solid fa-check"></i> Valider</button>
+          <button class="btn-sm btn-reject" onclick="decideValidation(${t.id},'rejete')"><i class="fa-solid fa-xmark"></i> Rejeter</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  const liveTbody = document.getElementById('validationLiveTable');
+  if(liveTbody){
+    const active = [...tasksCache].filter(t=>t.validation_status!=='valide').sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+    if(active.length===0){ liveTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Rien à suivre pour le moment.</td></tr>'; }
+    else{
+      liveTbody.innerHTML = active.map(t=>{
+        const status = computeAlertStatus(t);
+        const deptName = departmentsMap[t.department_id] || 'Général';
+        return `<tr>
+          <td><strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong><br><span style="font-size:.72rem;color:var(--text-muted);">${deptName} · ${t.assignee_name||'Non assigné'}</span></td>
+          <td class="mono" style="font-size:.76rem;">${formatDateTime(t.created_at)}</td>
+          <td>
+            <div class="progress-wrapper">
+              <div class="progress-bar-bg"><div class="progress-bar-fill" style="width:${t.progress}%;background-color:var(--s-${status.level==='justified'?'justified':status.level});"></div></div>
+              <span style="font-weight:700;font-size:.8rem;">${t.progress}%</span>
+            </div>
+          </td>
+          <td><div class="signal-row"><span class="pulse ${status.level}"></span>${status.label}</div></td>
+          <td>${deliverablesSummary(t)}</td>
+        </tr>`;
+      }).join('');
+    }
+  }
 }
 
 async function decideValidation(taskId, decision){
@@ -1359,9 +1577,125 @@ document.getElementById('delayForm').addEventListener('submit', async (e)=>{
   renderAll();
 });
 
-/* ---------------- DAILY JOURNAL ---------------- */
+/* ---------------- EDITION / SUPPRESSION DE TACHE ---------------- */
+let editDeliverablesState = [];
+
+function openTaskEditModal(taskId){
+  const task = tasksCache.find(t=>t.id===taskId);
+  if(!task) return;
+  document.getElementById('editTaskId').value = task.id;
+  document.getElementById('editTaskTitle').value = task.title;
+  document.getElementById('editTaskDueDate').value = task.due_date || '';
+  document.getElementById('editTaskAssigneeName').value = task.assignee_name || '';
+  document.getElementById('editTaskAssigneeEmail').value = task.assignee_email || '';
+  document.getElementById('editTaskCreatedAt').innerHTML = `<i class="fa-solid fa-clock"></i> Créée le ${formatDateTime(task.created_at)}`;
+  populateDeptSelect(document.getElementById('editTaskDept'));
+  document.getElementById('editTaskDept').value = task.department_id;
+  editDeliverablesState = (task.deliverables || []).map(d=>({...d}));
+  renderEditChecklist();
+  openModal('taskEditModal');
+}
+
+function renderEditChecklist(){
+  const container = document.getElementById('editTaskChecklist');
+  if(editDeliverablesState.length===0){
+    container.innerHTML = '<p class="hint">Aucun livrable pour le moment — ajoute la première ligne ci-dessous.</p>';
+  } else {
+    container.innerHTML = editDeliverablesState.map((d,i)=>`
+      <div class="checklist-item ${d.done?'done':''}">
+        <div class="check-circle ${d.done?'checked':''}" onclick="toggleEditDeliverable(${i})">${d.done?'<i class="fa-solid fa-check"></i>':''}</div>
+        <span class="cl-text">${d.text}</span>
+        <i class="fa-solid fa-trash jdelete" onclick="removeEditDeliverable(${i})"></i>
+      </div>`).join('');
+  }
+  const done = editDeliverablesState.filter(d=>d.done).length;
+  const total = editDeliverablesState.length;
+  const pct = total ? Math.round(done/total*100) : 0;
+  document.getElementById('editTaskProgressLabel').textContent = total ? `Progression : ${done}/${total} livrables (${pct}%)` : 'Progression : 0% (aucun livrable défini)';
+}
+function toggleEditDeliverable(i){ editDeliverablesState[i].done = !editDeliverablesState[i].done; renderEditChecklist(); }
+function removeEditDeliverable(i){ editDeliverablesState.splice(i,1); renderEditChecklist(); }
+function addEditDeliverable(){
+  const input = document.getElementById('editTaskNewDeliverable');
+  const text = input.value.trim();
+  if(!text) return;
+  editDeliverablesState.push({id: 'tmp'+Date.now(), text, done:false});
+  input.value = '';
+  renderEditChecklist();
+}
+
+document.getElementById('taskEditForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const taskId = parseInt(document.getElementById('editTaskId').value);
+  const task = tasksCache.find(t=>t.id===taskId);
+  if(!task) return;
+  const deptSelect = document.getElementById('editTaskDept');
+  const department_id = parseInt(deptSelect.value) || task.department_id;
+  const payload = {
+    title: document.getElementById('editTaskTitle').value.trim(),
+    department_id,
+    due_date: document.getElementById('editTaskDueDate').value || null,
+    assignee_name: document.getElementById('editTaskAssigneeName').value.trim(),
+    assignee_email: document.getElementById('editTaskAssigneeEmail').value.trim(),
+    deliverables: editDeliverablesState.map(d=>({id: d.id && !String(d.id).startsWith('tmp') ? d.id : undefined, text:d.text, done:d.done})),
+  };
+  Object.assign(task, payload);
+  task.deliverables = editDeliverablesState;
+  task.progress = editDeliverablesState.length ? Math.round(editDeliverablesState.filter(d=>d.done).length/editDeliverablesState.length*100) : 0;
+  if(task.progress>=100 && task.validation_status==='en_cours') task.validation_status='en_attente';
+  else if(task.progress<100 && task.validation_status==='en_attente') task.validation_status='en_cours';
+  try{ if(!demoMode) { const updated = await apiPatch(`/tasks/${taskId}`, payload); Object.assign(task, updated); } }catch(err){ /* reste en local si l'API échoue */ }
+  closeModal('taskEditModal');
+  pushNotification('blue', `Tâche modifiée : ${task.title}`, `Les changements ont été enregistrés.`);
+  renderAll();
+});
+
+async function deleteCurrentEditTask(){
+  const taskId = parseInt(document.getElementById('editTaskId').value);
+  await quickDeleteTask(taskId);
+  closeModal('taskEditModal');
+}
+
+async function quickDeleteTask(taskId){
+  const task = tasksCache.find(t=>t.id===taskId);
+  if(!task) return;
+  if(!confirm(`Supprimer définitivement la tâche "${task.title}" ? Cette action est irréversible.`)) return;
+  try{ if(!demoMode) await fetch(`${API_URL}/tasks/${taskId}`, {method:'DELETE', headers: authHeaders()}); }catch(e){ /* suppression locale malgré tout */ }
+  tasksCache = tasksCache.filter(t=>t.id!==taskId);
+  delete taskFlags[taskId];
+  pushNotification('red', `Tâche supprimée`, `"${task.title}" a été retirée de la planification.`);
+  renderAll();
+}
+
+/* ---------------- DAILY JOURNAL (cahier de charge) ---------------- */
+let journalCycle = 'daily';
+
+/** Calcule la clé de "cycle" (bucket) contenant une date donnée, selon le mode choisi. */
+function journalCycleKeyFor(dateStr, cycle){
+  const d = new Date(dateStr+'T00:00:00');
+  if(cycle==='daily') return dateStr;
+  if(cycle==='3days'){
+    const epochDays = Math.floor(d.getTime()/86400000);
+    const bucketStart = Math.floor(epochDays/3)*3;
+    return new Date(bucketStart*86400000).toISOString().slice(0,10);
+  }
+  // weekly : on aligne sur le lundi de la semaine
+  const day = (d.getDay()+6)%7; // 0=lundi
+  const monday = new Date(d.getTime() - day*86400000);
+  return monday.toISOString().slice(0,10);
+}
+function journalKey(dateStr){
+  const cycleKey = journalCycleKeyFor(dateStr || todayStr(), journalCycle);
+  return `${cycleKey}__${currentUser.email||'invite'}`;
+}
+function changeJournalCycle(){
+  journalCycle = document.getElementById('journalCycleSelect').value;
+  renderJournal();
+}
+
 function renderJournal(){
   document.getElementById('journalDateDisplay').textContent = new Date().toLocaleDateString('fr-FR',{weekday:'long', day:'numeric', month:'long'});
+  document.getElementById('journalItemDate').value = todayStr();
   const key = journalKey();
   const items = dailyJournal[key] || [];
   const list = document.getElementById('journalList');
@@ -1371,21 +1705,23 @@ function renderJournal(){
   list.innerHTML = items.map(it=>`
     <li class="journal-item ${it.done?'done':''}">
       <div class="check-circle ${it.done?'checked':''}" onclick="toggleJournalItem('${it.id}')">${it.done?'<i class="fa-solid fa-check"></i>':''}</div>
-      <span class="jtext">${it.text}</span>
-      <span class="jtime mono">${it.time}</span>
-      <i class="fa-solid fa-trash jdelete" onclick="deleteJournalItem('${it.id}')"></i>
+      <span class="jtext" id="jtext-${it.id}" ondblclick="editJournalItem('${it.id}')">${it.text}</span>
+      <span class="jtime mono" title="Programmée pour le ${it.scheduledDate ? new Date(it.scheduledDate).toLocaleDateString('fr-FR') : '—'}">${it.scheduledDate ? new Date(it.scheduledDate).toLocaleDateString('fr-FR') : ''} · ${it.time}</span>
+      <i class="fa-solid fa-pen jdelete" onclick="editJournalItem('${it.id}')" title="Modifier"></i>
+      <i class="fa-solid fa-trash jdelete" onclick="deleteJournalItem('${it.id}')" title="Supprimer"></i>
     </li>`).join('');
   const done = items.filter(i=>i.done).length;
   document.getElementById('journalProgressFill').style.width = Math.round(done/items.length*100)+'%';
 }
-function journalKey(){ return `${todayStr()}__${currentUser.email||'invite'}`; }
 function addJournalItem(){
   const input = document.getElementById('journalNewItem');
+  const dateInput = document.getElementById('journalItemDate');
   const text = input.value.trim();
   if(!text) return;
-  const key = journalKey();
+  const scheduledDate = dateInput.value || todayStr();
+  const key = journalKey(scheduledDate);
   if(!dailyJournal[key]) dailyJournal[key] = [];
-  dailyJournal[key].push({id:Date.now().toString(), text, done:false, time:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})});
+  dailyJournal[key].push({id:Date.now().toString(), text, done:false, scheduledDate, time:new Date().toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})});
   input.value = '';
   renderJournal();
 }
@@ -1395,12 +1731,72 @@ function toggleJournalItem(id){
   if(item) item.done = !item.done;
   renderJournal();
 }
+function editJournalItem(id){
+  const key = journalKey();
+  const item = (dailyJournal[key]||[]).find(i=>i.id===id);
+  if(!item) return;
+  const newText = prompt('Modifier la tâche :', item.text);
+  if(newText !== null && newText.trim()){ item.text = newText.trim(); }
+  renderJournal();
+}
 function deleteJournalItem(id){
   const key = journalKey();
   dailyJournal[key] = (dailyJournal[key]||[]).filter(i=>i.id!==id);
   renderJournal();
 }
 document.getElementById('journalNewItem').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); addJournalItem(); } });
+
+/* ----- Historique (consultation d'un cycle passé, lecture seule) ----- */
+function viewJournalHistory(){
+  const dateVal = document.getElementById('journalHistoryDate').value;
+  const list = document.getElementById('journalHistoryList');
+  const empty = document.getElementById('journalHistoryEmpty');
+  if(!dateVal){ list.innerHTML=''; empty.style.display='block'; return; }
+  const key = journalKey(dateVal);
+  const items = dailyJournal[key] || [];
+  if(items.length===0){ list.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  list.innerHTML = items.map(it=>`
+    <li class="journal-item ${it.done?'done':''}">
+      <div class="check-circle ${it.done?'checked':''}">${it.done?'<i class="fa-solid fa-check"></i>':''}</div>
+      <span class="jtext">${it.text}</span>
+      <span class="jtime mono">${it.scheduledDate ? new Date(it.scheduledDate).toLocaleDateString('fr-FR') : ''}</span>
+    </li>`).join('');
+}
+
+/* ----- Export CSV / Excel du cahier de charge courant ----- */
+function currentJournalRows(){
+  const items = dailyJournal[journalKey()] || [];
+  return items.map(it => ({
+    Tâche: it.text,
+    Statut: it.done ? 'Fait' : 'À faire',
+    'Date programmée': it.scheduledDate || '',
+    'Heure de saisie': it.time || '',
+  }));
+}
+function exportJournalCSV(){
+  const rows = currentJournalRows();
+  if(rows.length===0){ alert('Rien à exporter pour cette période.'); return; }
+  const header = Object.keys(rows[0]);
+  const csv = [header, ...rows.map(r=>header.map(h=>r[h]))]
+    .map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `cahier-de-charge-${todayStr()}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function exportJournalExcel(){
+  const rows = currentJournalRows();
+  if(rows.length===0){ alert('Rien à exporter pour cette période.'); return; }
+  if(!window.XLSX){ alert("La librairie d'export Excel n'a pas pu se charger."); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Cahier de charge');
+  XLSX.writeFile(wb, `cahier-de-charge-${todayStr()}.xlsx`);
+}
+
 
 /* ---------------- ANALYTICS ---------------- */
 function renderAnalytics(){
@@ -1475,29 +1871,48 @@ document.getElementById('deptForm').addEventListener('submit', async (e)=>{
   renderAll();
 });
 
+let newTaskDeliverablesState = [];
+function renderNewTaskDeliverables(){
+  const container = document.getElementById('newTaskDeliverables');
+  if(newTaskDeliverablesState.length===0){ container.innerHTML=''; return; }
+  container.innerHTML = `<div class="chip-list">${newTaskDeliverablesState.map((txt,i)=>`
+    <span class="chip">${txt}<span class="rm" onclick="removeNewTaskDeliverable(${i})"><i class="fa-solid fa-xmark"></i></span></span>`).join('')}</div>`;
+}
+function addNewTaskDeliverable(){
+  const input = document.getElementById('taskDeliverableInput');
+  const text = input.value.trim();
+  if(!text) return;
+  newTaskDeliverablesState.push(text);
+  input.value = '';
+  renderNewTaskDeliverables();
+}
+function removeNewTaskDeliverable(i){ newTaskDeliverablesState.splice(i,1); renderNewTaskDeliverables(); }
+
 document.getElementById('taskForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const title = document.getElementById('taskTitle').value;
-  const department_id = parseInt(document.getElementById('taskDept').value) || Object.keys(departmentsMap)[0];
-  const progress = parseFloat(document.getElementById('taskProgress').value);
-  const deliverable = document.getElementById('taskDeliverable').value;
+  const deptSelect = document.getElementById('taskDept');
+  const department_id = await resolveDepartmentId(deptSelect, document.getElementById('taskNewDeptInput'));
+  if(!department_id){ alert('Choisis ou crée un domaine avant de planifier la tâche.'); return; }
   const dueDate = document.getElementById('taskDueDate').value;
   const assigneeName = document.getElementById('taskAssigneeName').value;
   const assigneeEmail = document.getElementById('taskAssigneeEmail').value;
+  const deliverables = [...newTaskDeliverablesState];
 
   let newTask;
   try{
     if(!demoMode){
       newTask = await apiPost('/tasks/', {
-        title, department_id, progress, deliverable,
+        title, department_id, deliverables,
         due_date: dueDate || null, assignee_name: assigneeName || null, assignee_email: assigneeEmail || null,
       });
     } else { throw new Error('demo'); }
   }catch(err){
+    const items = deliverables.map(txt=>({id:'tmp'+Math.random().toString(36).slice(2), text:txt, done:false}));
     newTask = {
-      id: Date.now(), title, department_id, progress, deliverable,
+      id: Date.now(), title, department_id, deliverables: items, progress: 0,
       due_date: dueDate || null, new_due_date: null, assignee_name: assigneeName, assignee_email: assigneeEmail,
-      validation_status: 'en_cours', delay_reason: '',
+      validation_status: 'en_cours', delay_reason: '', created_at: new Date().toISOString(),
     };
   }
   if(newTask && !tasksCache.find(t=>t.id===newTask.id)) tasksCache.push(newTask);
@@ -1507,11 +1922,14 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
   sendAlertEmail(assigneeEmail, assigneeName, `[OrbitFlow] Nouvelle tâche assignée — ${title}`, `Une nouvelle tâche "${title}" t'a été assignée. Échéance : ${dueDate || 'non fixée'}.`);
 
   document.getElementById('taskTitle').value='';
-  document.getElementById('taskDeliverable').value='';
-  document.getElementById('taskProgress').value='0';
   document.getElementById('taskDueDate').value='';
   document.getElementById('taskAssigneeName').value='';
   document.getElementById('taskAssigneeEmail').value='';
+  document.getElementById('taskNewDeptInput').value='';
+  document.getElementById('taskNewDeptInput').style.display='none';
+  newTaskDeliverablesState = [];
+  renderNewTaskDeliverables();
+  await loadDepartments();
   renderAll();
 });
 
