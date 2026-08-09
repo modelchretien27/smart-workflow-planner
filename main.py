@@ -42,7 +42,6 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 jours
 FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "changeme-founder-key")
 PLAN_PRICES = {"decouverte": 0.0, "business_pro": 29.0, "entreprise": 99.0}
 
-# Hachage sécurisé SHA-256 (évite les conflits passlib/bcrypt)
 def hash_password(password: str) -> str:
     salt = SECRET_KEY[:16]
     return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
@@ -106,7 +105,7 @@ class TaskDB(Base):
     __tablename__ = "tasks"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
-    deliverables_json = Column(Text, default="[]")  # JSON: [{"id":"...", "text":"...", "done":false}, ...]
+    deliverables_json = Column(Text, default="[]")
     department_id = Column(Integer, ForeignKey("departments.id"))
     organization_id = Column(Integer, ForeignKey("organizations.id"))
 
@@ -114,7 +113,8 @@ class TaskDB(Base):
     new_due_date = Column(Date, nullable=True)
     assignee_name = Column(String, nullable=True)
     assignee_email = Column(String, nullable=True)
-    validation_status = Column(String, default="en_cours")
+    validation_status = Column(String, default="en_cours")  # en_attente_cadrage | en_cours | en_attente | valide | rejete
+    supervisor_comment = Column(Text, nullable=True)        # Observations et orientations du superviseur
     delay_reason = Column(Text, nullable=True)
     validated_by = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -170,7 +170,6 @@ def get_db():
         db.close()
 
 
-# ------------------------- DEPENDANCES D'AUTHENTIFICATION -------------------------
 def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> UserDB:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentification requise.")
@@ -207,12 +206,10 @@ def get_current_founder(authorization: Optional[str] = Header(None)):
 class DepartmentCreate(BaseModel):
     name: str
 
-
 class DeliverableItem(BaseModel):
     id: Optional[str] = None
     text: str
     done: bool = False
-
 
 class TaskCreate(BaseModel):
     title: str
@@ -221,7 +218,6 @@ class TaskCreate(BaseModel):
     due_date: Optional[date] = None
     assignee_name: Optional[str] = None
     assignee_email: Optional[EmailStr] = None
-
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
@@ -233,15 +229,12 @@ class TaskUpdate(BaseModel):
     delay_reason: Optional[str] = None
     new_due_date: Optional[date] = None
 
-
 class DeliverableToggle(BaseModel):
     done: bool
-
 
 class TaskValidate(BaseModel):
     decision: str
     comment: Optional[str] = None
-
 
 class RegisterOrganization(BaseModel):
     organization_name: str
@@ -250,55 +243,45 @@ class RegisterOrganization(BaseModel):
     admin_email: EmailStr
     admin_password: str
 
-
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
-
 
 class InviteEntry(BaseModel):
     email: EmailStr
     name: Optional[str] = None
     role: str = "employe"
 
-
 class InviteRequest(BaseModel):
     invites: List[InviteEntry]
-
 
 class AcceptInvite(BaseModel):
     name: str
     password: str
 
-
 class FeedbackCreate(BaseModel):
     message: str
     rating: int = 5
-
 
 class SubscribeRequest(BaseModel):
     plan: str
     payment_method: str
 
-
 class FounderLogin(BaseModel):
     key: str
 
 
-# Helpers de sérialisation
 def serialize_user(u: UserDB) -> dict:
     return {
         "id": u.id, "name": u.name, "email": u.email, "role": u.role,
         "organization_id": u.organization_id, "is_active": u.is_active,
     }
 
-
 def serialize_org(o: OrganizationDB) -> dict:
     return {
         "id": o.id, "name": o.name, "sector": o.sector, "plan": o.plan,
         "owner_email": o.owner_email, "created_at": o.created_at.isoformat() if o.created_at else None,
     }
-
 
 def get_deliverables(t: TaskDB) -> List[dict]:
     try:
@@ -307,13 +290,11 @@ def get_deliverables(t: TaskDB) -> List[dict]:
     except (ValueError, TypeError):
         return []
 
-
 def compute_progress(deliverables: List[dict]) -> float:
     if not deliverables:
         return 0.0
     done = sum(1 for d in deliverables if d.get("done"))
     return round(done / len(deliverables) * 100, 1)
-
 
 def serialize_task(t: TaskDB) -> dict:
     deliverables = get_deliverables(t)
@@ -325,7 +306,9 @@ def serialize_task(t: TaskDB) -> dict:
         "due_date": t.due_date.isoformat() if t.due_date else None,
         "new_due_date": t.new_due_date.isoformat() if t.new_due_date else None,
         "assignee_name": t.assignee_name, "assignee_email": t.assignee_email,
-        "validation_status": t.validation_status, "delay_reason": t.delay_reason,
+        "validation_status": t.validation_status, 
+        "supervisor_comment": t.supervisor_comment,
+        "delay_reason": t.delay_reason,
         "validated_by": t.validated_by,
         "created_at": t.created_at.isoformat() if t.created_at else None,
     }
@@ -337,7 +320,6 @@ def serialize_task(t: TaskDB) -> dict:
 @app.get("/")
 def read_root():
     return {"status": "online", "app": "OrbitFlow API", "docs": "/docs"}
-
 
 @app.get("/health")
 def health_check():
@@ -473,10 +455,15 @@ def read_departments(current_user: UserDB = Depends(get_current_user), db: Sessi
 def create_task(task: TaskCreate, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
     deliverables = [{"id": uuid.uuid4().hex[:8], "text": txt.strip(), "done": False}
                      for txt in task.deliverables if txt and txt.strip()]
+    
+    # Si la tâche est créée par un employé, elle nécessite une validation de cadrage en amont.
+    initial_status = "en_cours" if current_user.role in ("super_admin", "superviseur") else "en_attente_cadrage"
+
     db_task = TaskDB(
         title=task.title, department_id=task.department_id,
         organization_id=current_user.organization_id,
         deliverables_json=json.dumps(deliverables),
+        validation_status=initial_status,
         due_date=task.due_date, assignee_name=task.assignee_name, assignee_email=task.assignee_email,
     )
     db.add(db_task)
@@ -521,30 +508,6 @@ def update_task(task_id: int, payload: TaskUpdate, current_user: UserDB = Depend
     return serialize_task(task)
 
 
-@app.patch("/tasks/{task_id}/deliverables/{deliverable_id}")
-def toggle_deliverable(task_id: int, deliverable_id: str, payload: DeliverableToggle,
-                        current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    task = _get_org_task(task_id, current_user, db)
-    items = get_deliverables(task)
-    found = False
-    for d in items:
-        if d.get("id") == deliverable_id:
-            d["done"] = payload.done
-            found = True
-            break
-    if not found:
-        raise HTTPException(status_code=404, detail="Livrable introuvable.")
-    task.deliverables_json = json.dumps(items)
-    progress = compute_progress(items)
-    if progress >= 100 and task.validation_status == "en_cours":
-        task.validation_status = "en_attente"
-    elif progress < 100 and task.validation_status == "en_attente":
-        task.validation_status = "en_cours"
-    db.commit()
-    db.refresh(task)
-    return serialize_task(task)
-
-
 @app.delete("/tasks/{task_id}")
 def delete_task(task_id: int, current_user: UserDB = Depends(require_roles("super_admin", "superviseur")),
                  db: Session = Depends(get_db)):
@@ -561,15 +524,22 @@ def validate_task(task_id: int, payload: TaskValidate,
     task = _get_org_task(task_id, current_user, db)
     if payload.decision not in ("valide", "rejete"):
         raise HTTPException(status_code=400, detail="Décision invalide.")
-    task.validation_status = payload.decision
+    
+    # Si validé en amont lors du cadrage, passe en_cours d'exécution
+    if payload.decision == "valide" and task.validation_status == "en_attente_cadrage":
+        task.validation_status = "en_cours"
+    else:
+        task.validation_status = payload.decision
+        
     task.validated_by = current_user.name
+    task.supervisor_comment = payload.comment
     db.commit()
     db.refresh(task)
     return serialize_task(task)
 
 
 # =========================================================================
-# 8. FEEDBACK / AVIS UTILISATEURS
+# 8. FEEDBACK & FACTURATION
 # =========================================================================
 @app.post("/feedback/")
 def create_feedback(payload: FeedbackCreate, current_user: UserDB = Depends(get_current_user),
@@ -585,9 +555,6 @@ def create_feedback(payload: FeedbackCreate, current_user: UserDB = Depends(get_
     return {"id": fb.id, "message": "Merci pour ton retour !"}
 
 
-# =========================================================================
-# 9. ABONNEMENTS / FACTURATION
-# =========================================================================
 @app.post("/billing/subscribe")
 def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_roles("super_admin")),
               db: Session = Depends(get_db)):
@@ -604,7 +571,7 @@ def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_
 
 
 # =========================================================================
-# 10. CONSOLE FONDATEUR (ADMIN)
+# 9. CONSOLE FONDATEUR (ADMIN)
 # =========================================================================
 @app.post("/admin/login")
 def admin_login(payload: FounderLogin):
