@@ -1,8 +1,9 @@
 import os
 import uuid
+import json
 import hashlib
 from datetime import datetime, date, timedelta
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Depends, Header, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,6 @@ from sqlalchemy import (
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from jose import jwt, JWTError
-import stripe
 
 # =========================================================================
 # 1. CONFIGURATION ET CONNEXION BASE DE DONNEES
@@ -25,7 +25,7 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Options de reconnexion SSL robustes pour Neon / Render
+# Connexion SSL robuste pour Neon / Render
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
@@ -42,17 +42,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 jours
 FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "changeme-founder-key")
 PLAN_PRICES = {"decouverte": 0.0, "business_pro": 29.0, "entreprise": 99.0}
 
-# STRIPE CONFIGURATION
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_xxx")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_xxx")
-stripe.api_key = STRIPE_SECRET_KEY
-
-STRIPE_PRICES = {
-    "business_pro": os.getenv("STRIPE_PRICE_BUSINESS_PRO", "price_xxx"),
-    "entreprise": os.getenv("STRIPE_PRICE_ENTREPRISE", "price_yyy")
-}
-
-# Hachage sécurisé natif (SHA-256 + Sel)
+# Hachage sécurisé SHA-256 (évite les conflits passlib/bcrypt)
 def hash_password(password: str) -> str:
     salt = SECRET_KEY[:16]
     return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
@@ -116,8 +106,7 @@ class TaskDB(Base):
     __tablename__ = "tasks"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
-    progress = Column(Float, default=0.0)
-    deliverable = Column(String, nullable=True)
+    deliverables_json = Column(Text, default="[]")  # JSON: [{"id":"...", "text":"...", "done":false}, ...]
     department_id = Column(Integer, ForeignKey("departments.id"))
     organization_id = Column(Integer, ForeignKey("organizations.id"))
 
@@ -156,7 +145,7 @@ class SubscriptionDB(Base):
 Base.metadata.create_all(bind=engine)
 
 # =========================================================================
-# 3. APPLICATION FASTAPI & MIDDLEWARES CORS
+# 3. APPLICATION FASTAPI & MIDDLEWARES
 # =========================================================================
 app = FastAPI(
     title="OrbitFlow API",
@@ -219,24 +208,34 @@ class DepartmentCreate(BaseModel):
     name: str
 
 
+class DeliverableItem(BaseModel):
+    id: Optional[str] = None
+    text: str
+    done: bool = False
+
+
 class TaskCreate(BaseModel):
     title: str
-    progress: float = 0.0
     department_id: int
-    deliverable: Optional[str] = None
+    deliverables: List[str] = []
     due_date: Optional[date] = None
     assignee_name: Optional[str] = None
     assignee_email: Optional[EmailStr] = None
 
 
 class TaskUpdate(BaseModel):
-    progress: Optional[float] = None
-    deliverable: Optional[str] = None
+    title: Optional[str] = None
+    department_id: Optional[int] = None
+    deliverables: Optional[List[DeliverableItem]] = None
     due_date: Optional[date] = None
     assignee_name: Optional[str] = None
     assignee_email: Optional[EmailStr] = None
     delay_reason: Optional[str] = None
     new_due_date: Optional[date] = None
+
+
+class DeliverableToggle(BaseModel):
+    done: bool
 
 
 class TaskValidate(BaseModel):
@@ -282,15 +281,11 @@ class SubscribeRequest(BaseModel):
     payment_method: str
 
 
-class MobileMoneyRequest(BaseModel):
-    phone_number: str
-    plan: str
-
-
 class FounderLogin(BaseModel):
     key: str
 
 
+# Helpers de sérialisation
 def serialize_user(u: UserDB) -> dict:
     return {
         "id": u.id, "name": u.name, "email": u.email, "role": u.role,
@@ -305,15 +300,34 @@ def serialize_org(o: OrganizationDB) -> dict:
     }
 
 
+def get_deliverables(t: TaskDB) -> List[dict]:
+    try:
+        items = json.loads(t.deliverables_json or "[]")
+        return items if isinstance(items, list) else []
+    except (ValueError, TypeError):
+        return []
+
+
+def compute_progress(deliverables: List[dict]) -> float:
+    if not deliverables:
+        return 0.0
+    done = sum(1 for d in deliverables if d.get("done"))
+    return round(done / len(deliverables) * 100, 1)
+
+
 def serialize_task(t: TaskDB) -> dict:
+    deliverables = get_deliverables(t)
     return {
-        "id": t.id, "title": t.title, "progress": t.progress, "deliverable": t.deliverable,
+        "id": t.id, "title": t.title,
+        "deliverables": deliverables,
+        "progress": compute_progress(deliverables),
         "department_id": t.department_id, "organization_id": t.organization_id,
         "due_date": t.due_date.isoformat() if t.due_date else None,
         "new_due_date": t.new_due_date.isoformat() if t.new_due_date else None,
         "assignee_name": t.assignee_name, "assignee_email": t.assignee_email,
         "validation_status": t.validation_status, "delay_reason": t.delay_reason,
         "validated_by": t.validated_by,
+        "created_at": t.created_at.isoformat() if t.created_at else None,
     }
 
 
@@ -457,9 +471,12 @@ def read_departments(current_user: UserDB = Depends(get_current_user), db: Sessi
 
 @app.post("/tasks/")
 def create_task(task: TaskCreate, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    deliverables = [{"id": uuid.uuid4().hex[:8], "text": txt.strip(), "done": False}
+                     for txt in task.deliverables if txt and txt.strip()]
     db_task = TaskDB(
-        title=task.title, progress=task.progress, department_id=task.department_id,
-        organization_id=current_user.organization_id, deliverable=task.deliverable,
+        title=task.title, department_id=task.department_id,
+        organization_id=current_user.organization_id,
+        deliverables_json=json.dumps(deliverables),
         due_date=task.due_date, assignee_name=task.assignee_name, assignee_email=task.assignee_email,
     )
     db.add(db_task)
@@ -474,30 +491,74 @@ def read_tasks(current_user: UserDB = Depends(get_current_user), db: Session = D
     return [serialize_task(t) for t in tasks]
 
 
-@app.patch("/tasks/{task_id}")
-def update_task(task_id: int, payload: TaskUpdate, current_user: UserDB = Depends(get_current_user),
-                 db: Session = Depends(get_db)):
+def _get_org_task(task_id: int, current_user: UserDB, db: Session) -> TaskDB:
     task = db.query(TaskDB).filter(TaskDB.id == task_id,
                                     TaskDB.organization_id == current_user.organization_id).first()
     if not task:
         raise HTTPException(status_code=404, detail="Tâche introuvable.")
-    for field, value in payload.dict(exclude_unset=True).items():
+    return task
+
+
+@app.patch("/tasks/{task_id}")
+def update_task(task_id: int, payload: TaskUpdate, current_user: UserDB = Depends(get_current_user),
+                 db: Session = Depends(get_db)):
+    task = _get_org_task(task_id, current_user, db)
+    data = payload.dict(exclude_unset=True)
+    deliverables_payload = data.pop("deliverables", None)
+    for field, value in data.items():
         setattr(task, field, value)
-    if payload.progress is not None and payload.progress >= 100:
-        task.validation_status = "en_attente"
+    if deliverables_payload is not None:
+        clean = [{"id": d.get("id") or uuid.uuid4().hex[:8], "text": d.get("text", "").strip(), "done": bool(d.get("done"))}
+                  for d in deliverables_payload if d.get("text", "").strip()]
+        task.deliverables_json = json.dumps(clean)
+        progress = compute_progress(clean)
+        if progress >= 100 and task.validation_status == "en_cours":
+            task.validation_status = "en_attente"
+        elif progress < 100 and task.validation_status in ("en_attente",):
+            task.validation_status = "en_cours"
     db.commit()
     db.refresh(task)
     return serialize_task(task)
+
+
+@app.patch("/tasks/{task_id}/deliverables/{deliverable_id}")
+def toggle_deliverable(task_id: int, deliverable_id: str, payload: DeliverableToggle,
+                        current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    task = _get_org_task(task_id, current_user, db)
+    items = get_deliverables(task)
+    found = False
+    for d in items:
+        if d.get("id") == deliverable_id:
+            d["done"] = payload.done
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail="Livrable introuvable.")
+    task.deliverables_json = json.dumps(items)
+    progress = compute_progress(items)
+    if progress >= 100 and task.validation_status == "en_cours":
+        task.validation_status = "en_attente"
+    elif progress < 100 and task.validation_status == "en_attente":
+        task.validation_status = "en_cours"
+    db.commit()
+    db.refresh(task)
+    return serialize_task(task)
+
+
+@app.delete("/tasks/{task_id}")
+def delete_task(task_id: int, current_user: UserDB = Depends(require_roles("super_admin", "superviseur")),
+                 db: Session = Depends(get_db)):
+    task = _get_org_task(task_id, current_user, db)
+    db.delete(task)
+    db.commit()
+    return {"status": "deleted", "id": task_id}
 
 
 @app.patch("/tasks/{task_id}/validate")
 def validate_task(task_id: int, payload: TaskValidate,
                    current_user: UserDB = Depends(require_roles("super_admin", "superviseur")),
                    db: Session = Depends(get_db)):
-    task = db.query(TaskDB).filter(TaskDB.id == task_id,
-                                    TaskDB.organization_id == current_user.organization_id).first()
-    if not task:
-        raise HTTPException(status_code=404, detail="Tâche introuvable.")
+    task = _get_org_task(task_id, current_user, db)
     if payload.decision not in ("valide", "rejete"):
         raise HTTPException(status_code=400, detail="Décision invalide.")
     task.validation_status = payload.decision
@@ -525,7 +586,7 @@ def create_feedback(payload: FeedbackCreate, current_user: UserDB = Depends(get_
 
 
 # =========================================================================
-# 9. ABONNEMENTS & PAIEMENTS (STRIPE ET MOBILE MONEY)
+# 9. ABONNEMENTS / FACTURATION
 # =========================================================================
 @app.post("/billing/subscribe")
 def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_roles("super_admin")),
@@ -540,91 +601,6 @@ def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_
     ))
     db.commit()
     return {"status": "ok", "organization": serialize_org(org)}
-
-
-@app.post("/billing/create-checkout-session")
-def create_checkout_session(plan: str, current_user: UserDB = Depends(require_roles("super_admin")), db: Session = Depends(get_db)):
-    if plan not in STRIPE_PRICES or not STRIPE_PRICES[plan]:
-        raise HTTPException(status_code=400, detail="Plan de tarification ou ID Stripe invalide.")
-
-    try:
-        checkout_session = stripe.checkout.Session.create(
-            payment_method_types=['card'],
-            line_items=[{
-                'price': STRIPE_PRICES[plan],
-                'quantity': 1,
-            }],
-            mode='subscription',
-            success_url="https://smart-workflow-planner.vercel.app/?payment=success",
-            cancel_url="https://smart-workflow-planner.vercel.app/?payment=cancelled",
-            client_reference_id=str(current_user.organization_id),
-            customer_email=current_user.email,
-            metadata={
-                "organization_id": str(current_user.organization_id),
-                "plan": plan
-            }
-        )
-        return {"checkout_url": checkout_session.url}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/billing/stripe-webhook")
-async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
-    payload = await request.body()
-    sig_header = request.headers.get("stripe-signature")
-
-    try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Payload invalide")
-    except stripe.error.SignatureVerificationError:
-        raise HTTPException(status_code=400, detail="Signature Webhook invalide")
-
-    if event['type'] == 'checkout.session.completed':
-        session = event['data']['object']
-        org_id = session.get('metadata', {}).get('organization_id')
-        plan = session.get('metadata', {}).get('plan')
-
-        if org_id and plan:
-            org = db.query(OrganizationDB).filter(OrganizationDB.id == int(org_id)).first()
-            if org:
-                org.plan = plan
-                db.add(SubscriptionDB(
-                    organization_id=org.id,
-                    plan=plan,
-                    price=PLAN_PRICES.get(plan, 0.0),
-                    payment_method="stripe_card",
-                    status="active"
-                ))
-                db.commit()
-
-    return {"status": "success"}
-
-
-@app.post("/billing/pay-mobile-money")
-def pay_mobile_money(payload: MobileMoneyRequest, current_user: UserDB = Depends(require_roles("super_admin")), db: Session = Depends(get_db)):
-    if payload.plan not in PLAN_PRICES:
-        raise HTTPException(status_code=400, detail="Plan inconnu.")
-
-    org = db.query(OrganizationDB).filter(OrganizationDB.id == current_user.organization_id).first()
-    org.plan = payload.plan
-    
-    db.add(SubscriptionDB(
-        organization_id=org.id,
-        plan=payload.plan,
-        price=PLAN_PRICES[payload.plan],
-        payment_method=f"mobile_money_{payload.phone_number[:3]}",
-        status="active"
-    ))
-    db.commit()
-
-    return {
-        "status": "pending_approval",
-        "message": f"Demande d'encaissement transmise au {payload.phone_number}. Veuillez valider sur votre téléphone."
-    }
 
 
 # =========================================================================
