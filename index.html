@@ -30,6 +30,7 @@
   --s-yellow:#f5a524;
   --s-red:#f0454f;
   --s-justified:#8457f5;
+  --s-teal:#0891b2;
 
   --font-display:'Space Grotesk',sans-serif;
   --font-body:'Inter',-apple-system,sans-serif;
@@ -159,6 +160,8 @@ header{
 .pulse.yellow{background:var(--s-yellow);}
 .pulse.red{background:var(--s-red);}
 .pulse.justified{background:var(--s-justified);}
+.pulse.teal{background:var(--s-teal);}
+.pulse.teal::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid var(--s-teal);opacity:.55;animation:pulseRing 1.6s ease-out infinite;}
 .pulse.red::after,.pulse.yellow::after{
   content:"";position:absolute;inset:-4px;border-radius:50%;border:2px solid currentColor;opacity:.55;
   animation:pulseRing 1.6s ease-out infinite;
@@ -226,7 +229,15 @@ tr:last-child td{border-bottom:none;}
 .badge-info{background:#e1ebff;color:#1f4fc4;}
 .badge-success{background:#dcfaf0;color:#0a8a5f;}
 .badge-justified{background:#efe7ff;color:#6832d6;}
+.badge-teal{background:#cffafe;color:#0e6376;}
 .badge-neutral{background:#eef1f6;color:#5b6478;}
+.pin-flag{display:inline-flex;align-items:center;gap:4px;background:#fff1e0;color:#a3660a;border:1px solid #ffdca8;padding:2px 8px;border-radius:20px;font-size:.68rem;font-weight:700;text-transform:uppercase;}
+.star-toggle{cursor:pointer;color:#d8dee8;font-size:.95rem;}
+.star-toggle.active{color:var(--s-yellow);}
+.chip.critical{background:#fff7e6;border-color:#ffe1a8;color:#92660b;}
+.checklist-item .cl-star{cursor:pointer;color:#d8dee8;margin-right:2px;}
+.checklist-item .cl-star.active{color:var(--s-yellow);}
+.checklist-item.critical .cl-text{font-weight:700;}
 
 .deliverable-tag{display:inline-flex;align-items:center;gap:6px;background:#f1f4fa;border:1px solid #dde3ef;padding:3px 9px;border-radius:6px;font-size:.78rem;color:#475569;}
 .chip-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
@@ -346,12 +357,11 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
 </head>
 <body>
 
-<!-- ============ MODAL: AUTHENTIFICATION (Connexion / Inscription / Invitation) ============ -->
+<!-- ============ MODAL: AUTHENTIFICATION ============ -->
 <div id="onboardModal" class="modal" style="display:flex;">
   <div class="modal-content">
     <div class="mark" style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--violet));display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;margin-bottom:14px;"><i class="fa-solid fa-rocket"></i></div>
 
-    <!-- Mode INVITATION (affiché seulement si un lien d'invitation est ouvert) -->
     <div id="inviteMode" style="display:none;">
       <h3 style="margin-top:0;">Rejoindre <span id="inviteOrgName">l'équipe</span></h3>
       <p style="font-size:.88rem;color:var(--text-muted);">Tu as été invité(e) en tant que <strong id="inviteRoleLabel">membre</strong>. Choisis un mot de passe pour sécuriser ton accès.</p>
@@ -363,7 +373,6 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       </form>
     </div>
 
-    <!-- Mode CONNEXION / INSCRIPTION -->
     <div id="authMode">
       <div class="tab-toggle" style="margin-bottom:16px;">
         <button type="button" id="btnAuthLogin" class="active" onclick="setAuthTab('login')">Se connecter</button>
@@ -407,8 +416,7 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
     <span class="close-modal" onclick="closeModal('teamModal')">&times;</span>
     <h3 style="margin-top:0;"><i class="fa-solid fa-users" style="color:var(--accent);"></i> Équipe & invitations</h3>
     <p style="font-size:.85rem;color:var(--text-muted);">
-      En tant que Super Administrateur (ou Superviseur), invite les membres de ton organisation par e-mail. Chaque personne
-      invitée reçoit un lien unique pour créer son propre mot de passe — personne d'autre ne peut se connecter à ta place.
+      En tant que Super Administrateur (ou Superviseur), invite les membres de ton organisation par e-mail.
     </p>
     <form id="inviteForm">
       <div class="two-col">
@@ -426,7 +434,7 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   </div>
 </div>
 
-<!-- ============ MODAL: EDITION / DETAIL TACHE ============ -->
+<!-- ============ MODAL: EDITION TACHE ============ -->
 <div id="taskEditModal" class="modal">
   <div class="modal-content wide">
     <span class="close-modal" onclick="closeModal('taskEditModal')">&times;</span>
@@ -448,13 +456,18 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       </div>
       <div class="form-group">
         <label>Livrables & avancement</label>
-        <div class="hint" style="margin-top:-2px;margin-bottom:8px;">Coche un livrable dès qu'il est réellement fourni : la progression se met à jour toute seule.</div>
+        <div class="hint" style="margin-top:-2px;margin-bottom:8px;">Coche un livrable dès qu'il est réellement fourni. L'étoile ⭐ marque une étape critique.</div>
         <div id="editTaskChecklist"></div>
         <div class="progress-mini" id="editTaskProgressLabel"></div>
         <div class="add-journal-row" style="margin-top:0;">
           <input type="text" id="editTaskNewDeliverable" placeholder="Ajouter un livrable..." onkeydown="if(event.key==='Enter'){event.preventDefault();addEditDeliverable();}">
           <button type="button" class="btn-secondary" style="width:auto;" onclick="addEditDeliverable()"><i class="fa-solid fa-plus"></i></button>
         </div>
+      </div>
+      <div class="form-group">
+        <label>Ajouter un commentaire</label>
+        <div class="hint" style="margin-top:-2px;margin-bottom:8px;">Un commentaire suffit à lever l'épinglage "à traiter" d'une échéance proche.</div>
+        <textarea id="editTaskComment" rows="2" placeholder="ex: Avancement conforme, en attente du retour client."></textarea>
       </div>
       <div style="display:flex;gap:10px;margin-top:18px;">
         <button type="submit" class="btn-primary">Enregistrer les modifications</button>
@@ -464,7 +477,22 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   </div>
 </div>
 
-<!-- ============ MODAL: DELAY REASON ============ -->
+<!-- ============ MODAL: REPROGRAMMATION RAPIDE ============ -->
+<div id="rescheduleModal" class="modal">
+  <div class="modal-content">
+    <span class="close-modal" onclick="closeModal('rescheduleModal')">&times;</span>
+    <h3 style="margin-top:0;"><i class="fa-solid fa-calendar-days" style="color:var(--accent);"></i> Reprogrammer la tâche</h3>
+    <p style="font-size:.85rem;color:var(--text-muted);">L'échéance approche. Choisis une nouvelle date pour lever l'alerte.</p>
+    <form id="rescheduleForm">
+      <input type="hidden" id="rescheduleTaskId">
+      <div class="form-group"><label>Nouvelle échéance</label><input type="date" id="rescheduleNewDate" required></div>
+      <div class="form-group"><label>Commentaire (optionnel)</label><textarea id="rescheduleComment" rows="2" placeholder="ex: Décalé avec accord du responsable."></textarea></div>
+      <button type="submit" class="btn-primary">Reprogrammer</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODAL: JUSTIFICATION RETARD ============ -->
 <div id="delayModal" class="modal">
   <div class="modal-content">
     <span class="close-modal" onclick="closeModal('delayModal')">&times;</span>
@@ -485,7 +513,7 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   </div>
 </div>
 
-<!-- ============ MODAL: PAYMENT ============ -->
+<!-- ============ MODAL: PAIEMENT ============ -->
 <div id="paymentModal" class="modal">
   <div class="modal-content">
     <span class="close-modal" onclick="closePaymentModal()">&times;</span>
@@ -498,28 +526,24 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       <div class="form-group">
         <label>Moyen de paiement</label>
         <select id="paymentMethodSelect" required>
-          <option value="carte">Carte bancaire (Visa / Mastercard / American Express — Stripe)</option>
+          <option value="carte">Carte bancaire (Visa / Mastercard — Stripe)</option>
           <option value="mobile_money">Mobile Money (MTN MoMo / Orange Money)</option>
           <option value="virement">Virement bancaire (SWIFT / SEPA)</option>
           <option value="paypal">PayPal</option>
         </select>
-        <p class="hint"><i class="fa-solid fa-lock"></i> Paiements chiffrés de bout en bout, traités par des passerelles certifiées PCI-DSS.</p>
+        <p class="hint"><i class="fa-solid fa-lock"></i> Paiements chiffrés de bout en bout.</p>
       </div>
       <button type="submit" class="btn-primary" style="margin-top:8px;">Valider et activer le plan</button>
     </form>
   </div>
 </div>
 
-<!-- ============ MODAL: SETTINGS / EMAIL CONFIG ============ -->
+<!-- ============ MODAL: CONFIG EMAIL ============ -->
 <div id="settingsModal" class="modal">
   <div class="modal-content wide">
     <span class="close-modal" onclick="closeModal('settingsModal')">&times;</span>
     <h3 style="margin-top:0;"><i class="fa-solid fa-bell" style="color:var(--accent);"></i> Alertes e-mail</h3>
-    <p style="font-size:.85rem;color:var(--text-muted);">
-      Les alertes utilisent <strong>EmailJS</strong> pour envoyer un e-mail (professionnel ou personnel) directement depuis le
-      navigateur, sans backend supplémentaire. Renseigne tes identifiants EmailJS (gratuits sur emailjs.com) pour activer
-      l'envoi réel. Sans configuration, les alertes restent visibles dans le centre de notifications interne.
-    </p>
+    <p style="font-size:.85rem;color:var(--text-muted);">Configuration des identifiants EmailJS.</p>
     <form id="emailConfigForm">
       <div class="two-col">
         <div class="form-group"><label>Service ID</label><input type="text" id="cfgServiceId" placeholder="service_xxxxxxx"></div>
@@ -532,11 +556,6 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       </div>
       <button type="submit" class="btn-primary">Enregistrer la configuration</button>
     </form>
-    <div class="hint" style="margin-top:14px;">
-      <i class="fa-solid fa-circle-info"></i> Pour un envoi 100% automatique (sans que quelqu'un ait la page ouverte), il faudra
-      brancher un job planifié côté backend qui appelle un endpoint de vérification quotidienne. La logique de calcul des statuts
-      est déjà prête côté client pour ça — voir le commentaire "BACKEND REQUIS" dans le code source.
-    </div>
   </div>
 </div>
 
@@ -579,14 +598,12 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
 
 <div class="container">
 
-  <!-- ============ TAB: ACCUEIL / LANDING ============ -->
+  <!-- ============ TAB: ACCUEIL ============ -->
   <div id="accueil" class="tab-content active">
     <div class="hero">
       <span class="hero-eyebrow"><i class="fa-solid fa-satellite"></i> Planification opérationnelle nouvelle génération</span>
       <h1>Le planificateur qui ne laisse plus jamais une échéance filer.</h1>
-      <p class="lead">OrbitFlow organise les activités par domaine, fait remonter la validation au bon superviseur, et
-      colore chaque tâche en temps réel — bleu, vert, jaune, rouge — pour que personne, dans aucune équipe, n'ait
-      de surprise à la date butoir.</p>
+      <p class="lead">OrbitFlow organise les activités par domaine, fait remonter la validation au bon superviseur, et colore chaque tâche en temps réel.</p>
       <div class="hero-ctas">
         <button class="btn-hero-primary" onclick="switchTabProgrammatic('management')"><i class="fa-solid fa-play"></i> Lancer la planification</button>
         <button class="btn-hero-ghost" onclick="switchTabProgrammatic('pricing')">Voir les tarifs</button>
@@ -610,32 +627,22 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       <div class="feature-card">
         <div class="fi"><i class="fa-solid fa-layer-group"></i></div>
         <h4>Planification par domaine</h4>
-        <p>Chaque département pilote ses propres activités et livrables, agrégés automatiquement dans une matrice globale.</p>
+        <p>Chaque département pilote ses propres activités et livrables.</p>
       </div>
       <div class="feature-card">
         <div class="fi"><i class="fa-solid fa-signal"></i></div>
         <h4>Statuts vivants</h4>
-        <p>Chaque tâche affiche en continu son niveau d'urgence réel, calculé selon la progression et l'échéance — pas de saisie manuelle.</p>
+        <p>Chaque tâche affiche en continu son niveau d'urgence réel.</p>
       </div>
       <div class="feature-card">
         <div class="fi"><i class="fa-solid fa-user-shield"></i></div>
         <h4>Validation hiérarchique</h4>
-        <p>Le superviseur voit, commente et valide chaque livrable avant qu'il ne compte comme "terminé".</p>
+        <p>Le superviseur voit, commente et valide chaque cadrage et livrable.</p>
       </div>
       <div class="feature-card">
         <div class="fi"><i class="fa-solid fa-paper-plane"></i></div>
         <h4>Alertes par e-mail</h4>
-        <p>À la création d'une tâche et à l'approche de l'échéance, les personnes concernées reçoivent une alerte automatique.</p>
-      </div>
-      <div class="feature-card">
-        <div class="fi"><i class="fa-solid fa-calendar-check"></i></div>
-        <h4>Cahier de charge du jour</h4>
-        <p>Chaque employé garde sous les yeux sa propre check-list quotidienne, séparée de la planification formelle.</p>
-      </div>
-      <div class="feature-card">
-        <div class="fi"><i class="fa-solid fa-chart-line"></i></div>
-        <h4>Analytics de pilotage</h4>
-        <p>Taux de réalisation, charge par domaine, alertes en cours — une vision claire pour la direction.</p>
+        <p>À la création d'une tâche et à l'approche de l'échéance.</p>
       </div>
     </div>
   </div>
@@ -686,7 +693,7 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
             </div>
             <div class="form-group">
               <label>Livrables attendus</label>
-              <div class="hint" style="margin-top:-2px;margin-bottom:8px;">La progression (%) sera calculée automatiquement selon les livrables cochés comme faits — plus besoin de la saisir à la main.</div>
+              <div class="hint" style="margin-top:-2px;margin-bottom:8px;">La progression (%) sera calculée automatiquement selon les livrables cochés.</div>
               <div id="newTaskDeliverables"></div>
               <div class="add-journal-row" style="margin-top:0;">
                 <input type="text" id="taskDeliverableInput" placeholder="ex: Rapport PDF signé" onkeydown="if(event.key==='Enter'){event.preventDefault();addNewTaskDeliverable();}">
@@ -701,7 +708,10 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       <div>
         <div class="card">
           <h2><i class="fa-solid fa-table-columns"></i> Matrice générale des activités</h2>
-          <p class="card-desc">Vue consolidée de toutes les tâches, tous domaines confondus, avec leur statut d'urgence en temps réel. Clique sur une tâche pour l'éditer, cocher ses livrables ou la supprimer.</p>
+          <p class="card-desc">Vue consolidée de toutes les tâches. Clique sur une tâche pour l'éditer.</p>
+          <label style="display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--text-muted);margin-bottom:14px;">
+            <input type="checkbox" id="showArchivedToggle" onchange="renderMatrix()" style="width:auto;"> Afficher aussi les tâches archivées (100% atteint)
+          </label>
           <div class="table-responsive">
             <table>
               <thead><tr><th>Domaine / Tâche</th><th>Créée le</th><th>Assigné à</th><th>Échéance</th><th>Progression</th><th>Statut</th><th>Action</th></tr></thead>
@@ -719,7 +729,7 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       <div class="journal-header">
         <div>
           <h2 style="border:none;padding:0;margin:0;"><i class="fa-solid fa-calendar-day"></i> Mon cahier de charge</h2>
-          <p class="card-desc" style="margin-top:4px;">Une liste personnelle, séparée de la planification formelle — pour ne rien oublier aujourd'hui ou planifier les prochains jours.</p>
+          <p class="card-desc" style="margin-top:4px;">Une liste personnelle, séparée de la planification formelle.</p>
         </div>
         <div style="text-align:right;">
           <div class="journal-date mono" id="journalDateDisplay">--</div>
@@ -744,8 +754,7 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       </div>
       <ul class="journal-list" id="journalList" style="margin-top:16px;"></ul>
       <div id="journalEmpty" class="empty-state" style="display:none;">
-        <i class="fa-solid fa-mug-hot"></i>
-        Rien de programmé pour cette période. Ajoute ta première ligne du cahier de charge ci-dessus.
+        <i class="fa-solid fa-mug-hot"></i> Rien de programmé pour cette période.
       </div>
       <div class="export-row" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;">
         <button class="btn-secondary" onclick="exportJournalCSV()"><i class="fa-solid fa-file-csv"></i> Exporter en CSV</button>
@@ -755,9 +764,8 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
 
     <div class="card">
       <h2 style="border:none;padding:0;"><i class="fa-solid fa-clock-rotate-left"></i> Historique — consulter une période passée</h2>
-      <p class="card-desc">Retrouve les cahiers de charge archivés d'une journée, d'un cycle de 3 jours ou d'une semaine précédente.</p>
       <div class="filter-row">
-        <div class="form-group"><label>Choisir une date dans la période à consulter</label><input type="date" id="journalHistoryDate"></div>
+        <div class="form-group"><label>Choisir une date</label><input type="date" id="journalHistoryDate"></div>
         <button class="btn-secondary" onclick="viewJournalHistory()">Consulter</button>
       </div>
       <ul class="journal-list" id="journalHistoryList"></ul>
@@ -768,8 +776,6 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
 
     <div class="card" style="background:#f9fafc;border-style:dashed;">
       <h2 style="border:none;padding:0;"><i class="fa-solid fa-download"></i> Sauvegarde des données</h2>
-      <p class="card-desc">Le journal quotidien et les tâches vivent en mémoire le temps de la session. Exporte régulièrement
-      une sauvegarde JSON, ou importe-la pour reprendre exactement où tu en étais.</p>
       <div style="display:flex;gap:10px;flex-wrap:wrap;">
         <button class="btn-secondary" onclick="exportData()"><i class="fa-solid fa-file-export"></i> Exporter une sauvegarde</button>
         <label class="btn-secondary" style="cursor:pointer;">
@@ -783,8 +789,8 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   <!-- ============ TAB: VALIDATION SUPERVISEUR ============ -->
   <div id="validation" class="tab-content">
     <div class="card">
-      <h2><i class="fa-solid fa-clipboard-check"></i> File d'attente de validation</h2>
-      <p class="card-desc">Les tâches passées à 100% attendent ici l'approbation du superviseur avant d'être considérées comme livrées.</p>
+      <h2><i class="fa-solid fa-clipboard-check"></i> File d'attente de validation & cadrage</h2>
+      <p class="card-desc">Validez l'orientation initiale proposée par l'employé avant le démarrage des travaux.</p>
       <div class="table-responsive">
         <table>
           <thead><tr><th>Tâche</th><th>Domaine</th><th>Assigné à</th><th>Livrables</th><th>Statut</th><th>Décision</th></tr></thead>
@@ -792,13 +798,13 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
         </table>
       </div>
       <div id="validationEmpty" class="empty-state" style="display:none;">
-        <i class="fa-solid fa-circle-check"></i> Aucune tâche en attente de validation pour le moment.
+        <i class="fa-solid fa-circle-check"></i> Aucune tâche en attente d'orientation pour le moment.
       </div>
     </div>
 
     <div class="card">
       <h2><i class="fa-solid fa-eye"></i> Suivi en direct de toutes les tâches actives</h2>
-      <p class="card-desc">Vue de pilotage pour le superviseur : toutes les tâches non encore validées, quel que soit leur avancement. Clique sur une tâche pour l'ouvrir et cocher ses livrables.</p>
+      <p class="card-desc">Vue de pilotage : toutes les tâches en cours d'exécution.</p>
       <div class="table-responsive">
         <table>
           <thead><tr><th>Tâche</th><th>Créée le</th><th>Progression</th><th>Statut</th><th>Livrables</th></tr></thead>
@@ -812,7 +818,6 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   <div id="weekly" class="tab-content">
     <div class="card">
       <h2><i class="fa-solid fa-calendar-week"></i> Planning hebdomadaire des livrables</h2>
-      <p class="card-desc">Synchronisé avec la planification par domaine. Filtre par échéance pour revoir une période précise.</p>
       <div class="filter-row">
         <div class="form-group"><label>Du</label><input type="date" id="weeklyFilterFrom" onchange="renderWeekly()"></div>
         <div class="form-group"><label>Au</label><input type="date" id="weeklyFilterTo" onchange="renderWeekly()"></div>
@@ -831,7 +836,6 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   <div id="eval" class="tab-content">
     <div class="card">
       <h2><i class="fa-solid fa-award"></i> Évaluation et validation des performances</h2>
-      <p class="card-desc">Évaluation directe des activités planifiées par domaine — synchronisée en temps réel avec la matrice de planification.</p>
       <div class="table-responsive">
         <table>
           <thead><tr><th>Tâche</th><th>Créée le</th><th>Livrables</th><th>Taux de réalisation</th><th>Statut</th><th>Assigné à</th></tr></thead>
@@ -849,7 +853,7 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
         <div class="kpi-value" id="kpiAvgProgress">0%</div>
       </div>
       <div class="kpi-card" style="border-left:4px solid var(--s-green);">
-        <div class="kpi-title">Livrables validés</div>
+        <div class="kpi-title">Tâches archivées (100%)</div>
         <div class="kpi-value" id="kpiCompleted">0</div>
       </div>
       <div class="kpi-card" style="border-left:4px solid var(--s-yellow);">
@@ -863,6 +867,10 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       <div class="kpi-card" style="border-left:4px solid var(--s-justified);">
         <div class="kpi-title">Retards justifiés</div>
         <div class="kpi-value" id="kpiJustified">0</div>
+      </div>
+      <div class="kpi-card" style="border-left:4px solid var(--s-teal);">
+        <div class="kpi-title">En attente d'orientation</div>
+        <div class="kpi-value" id="kpiOrientation">0</div>
       </div>
       <div class="kpi-card" style="border-left:4px solid #64748b;">
         <div class="kpi-title">Domaines actifs</div>
@@ -882,7 +890,6 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
 
     <div class="card">
       <h2><i class="fa-solid fa-comment-dots"></i> Partager un avis sur OrbitFlow</h2>
-      <p class="card-desc">Ton retour est transmis directement à l'équipe OrbitFlow pour améliorer l'outil.</p>
       <form id="feedbackForm">
         <div class="form-group">
           <label>Ta note</label>
@@ -901,8 +908,7 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   <!-- ============ TAB: PRICING ============ -->
   <div id="pricing" class="tab-content">
     <div style="text-align:center;max-width:700px;margin:0 auto 30px;">
-      <h2 style="font-size:1.9rem;color:var(--primary);">Une tarification transparente, pensée pour grandir avec vous</h2>
-      <p style="color:var(--text-muted);">Du premier domaine planifié à la gouvernance multi-sites : un plan pour chaque étape.</p>
+      <h2 style="font-size:1.9rem;color:var(--primary);">Une tarification transparente</h2>
     </div>
     <div class="pricing-grid">
       <div class="pricing-card">
@@ -912,34 +918,25 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
         <ul class="features-list">
           <li><i class="fa-solid fa-check"></i> Jusqu'à 3 domaines</li>
           <li><i class="fa-solid fa-check"></i> 10 tâches maximum</li>
-          <li><i class="fa-solid fa-check"></i> Matrice générale + journal quotidien</li>
-          <li style="color:#cbd5e1;"><i class="fa-solid fa-xmark" style="color:#cbd5e1;"></i> Validation superviseur avancée</li>
-          <li style="color:#cbd5e1;"><i class="fa-solid fa-xmark" style="color:#cbd5e1;"></i> Alertes e-mail automatiques</li>
         </ul>
         <button class="btn-pricing btn-outline" onclick="selectPlan('Découverte',0)">Plan actuel</button>
       </div>
       <div class="pricing-card popular">
         <div class="popular-badge">Recommandé B2B</div>
         <h3>Business Pro</h3>
-        <p style="color:var(--text-muted);font-size:.85rem;">Pour PME & directions</p>
         <div class="price">29$ <span>/ mois</span></div>
         <ul class="features-list">
           <li><i class="fa-solid fa-check"></i> Domaines et tâches illimités</li>
-          <li><i class="fa-solid fa-check"></i> Alertes e-mail automatiques</li>
           <li><i class="fa-solid fa-check"></i> Validation superviseur complète</li>
-          <li><i class="fa-solid fa-check"></i> Analytics avancés</li>
         </ul>
         <button class="btn-pricing btn-primary" onclick="openPaymentModal('Business Pro',29)">Souscrire (29$/mois)</button>
       </div>
       <div class="pricing-card">
         <h3>Entreprise / Gouvernance</h3>
-        <p style="color:var(--text-muted);font-size:.85rem;">Grandes organisations</p>
         <div class="price">99$ <span>/ mois</span></div>
         <ul class="features-list">
           <li><i class="fa-solid fa-check"></i> Tout le plan Pro inclus</li>
           <li><i class="fa-solid fa-check"></i> Accès API REST illimité</li>
-          <li><i class="fa-solid fa-check"></i> Support dédié 24/7</li>
-          <li><i class="fa-solid fa-check"></i> Marque blanche</li>
         </ul>
         <button class="btn-pricing btn-outline" onclick="openPaymentModal('Entreprise',99)">Contacter les ventes</button>
       </div>
@@ -952,22 +949,17 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
   <div class="footer-grid">
     <div class="footer-col">
       <div class="logo" style="margin-bottom:12px;color:#fff;"><div class="mark"><i class="fa-solid fa-diagram-project"></i></div> OrbitFlow</div>
-      <p>Plateforme B2B de planification par domaine, de suivi d'échéances en temps réel et de validation hiérarchique des livrables.</p>
+      <p>Plateforme B2B de planification par domaine, de suivi d'échéances en temps réel et de validation hiérarchique.</p>
     </div>
     <div class="footer-col"><h4>Plateforme</h4><ul>
       <li><a href="#" onclick="switchTabProgrammatic('analytics');return false;">Tableau de bord</a></li>
       <li><a href="#" onclick="switchTabProgrammatic('validation');return false;">Validation</a></li>
-      <li><a href="#">Sécurité & conformité</a></li>
     </ul></div>
     <div class="footer-col"><h4>Solutions B2B</h4><ul>
-      <li><a href="#">Gouvernance d'entreprise</a></li>
-      <li><a href="#">Suivi des livrables</a></li>
       <li><a href="https://smart-workflow-planner-api.onrender.com/docs" target="_blank">Intégration API</a></li>
     </ul></div>
     <div class="footer-col"><h4>Support & légal</h4><ul>
       <li><a href="https://smart-workflow-planner-api.onrender.com/docs" target="_blank">Documentation API</a></li>
-      <li><a href="#">Politique de confidentialité</a></li>
-      <li><a href="#">Conditions d'utilisation</a></li>
     </ul></div>
   </div>
   <div class="footer-bottom">
@@ -977,23 +969,11 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
 </footer>
 
 <script>
-/* =====================================================================
-   Cette interface est câblée sur le backend v2 (authentification, invitations,
-   validation, retards) : /auth/*, /tasks/{id}, /tasks/{id}/validate, /feedback/,
-   /billing/subscribe. Si l'API est injoignable (ou en mode démo), tout continue
-   de fonctionner grâce à des données d'exemple en mémoire — pratique pour une
-   démonstration commerciale même sans connexion au serveur.
-   Reste à faire côté backend pour une automatisation complète : un job planifié
-   quotidien (cron) qui recalcule les statuts et envoie les e-mails de retard
-   même quand personne n'a la page ouverte (aujourd'hui, la vérification se fait
-   uniquement pendant qu'un utilisateur a la page active).
-===================================================================== */
-
 const API_URL = "https://smart-workflow-planner-api.onrender.com";
 let departmentsMap = {};
 let tasksCache = [];
-let taskFlags = {};          // id -> {notifiedRed, notifiedYellow} — purement local, ne concerne pas le backend
-let dailyJournal = {};       // 'YYYY-MM-DD' -> [{id,text,done,time}]
+let taskFlags = {};          
+let dailyJournal = {};       
 let notifications = [];
 let doughnutChartInstance = null;
 let barChartInstance = null;
@@ -1006,9 +986,6 @@ let demoMode = false;
 let selectedStarRating = 5;
 
 const todayStr = () => new Date().toISOString().slice(0,10);
-
-/* ---------------- ONBOARDING ---------------- */
-/* ---------------- AUTHENTIFICATION REELLE ---------------- */
 const roleLabels = { super_admin:'Super Administrateur', superviseur:'Superviseur', employe:'Employé' };
 
 function setAuthTab(mode){
@@ -1139,16 +1116,14 @@ function checkInviteInUrl(){
   });
 }
 
-/* ---------------- MODAL HELPERS ---------------- */
 function openModal(id){ document.getElementById(id).style.display='flex'; }
 function closeModal(id){ document.getElementById(id).style.display='none'; }
 
-/* ---------------- TABS ---------------- */
 function switchTab(tabId, event){
   document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById(tabId).classList.add('active');
-  event.currentTarget.classList.add('active');
+  if(event) event.currentTarget.classList.add('active');
 }
 function switchTabProgrammatic(tabId){
   document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
@@ -1158,7 +1133,6 @@ function switchTabProgrammatic(tabId){
   btns.forEach(b=>{ if(b.getAttribute('onclick') && b.getAttribute('onclick').includes(`'${tabId}'`)) b.classList.add('active'); });
 }
 
-/* ---------------- NOTIFICATIONS ---------------- */
 function pushNotification(level, title, msg){
   notifications.unshift({level, title, msg, time:new Date()});
   notifications = notifications.slice(0,40);
@@ -1182,7 +1156,6 @@ function renderNotifications(){
 }
 function toggleNotifPanel(){ document.getElementById('notifPanel').classList.toggle('open'); }
 
-/* ---------------- EMAIL ALERTS (EmailJS) ---------------- */
 document.getElementById('emailConfigForm').addEventListener('submit',(e)=>{
   e.preventDefault();
   emailConfig.serviceId = document.getElementById('cfgServiceId').value.trim();
@@ -1191,7 +1164,7 @@ document.getElementById('emailConfigForm').addEventListener('submit',(e)=>{
   emailConfig.threshold = parseInt(document.getElementById('cfgThreshold').value) || 3;
   emailConfig.enabled = !!(emailConfig.serviceId && emailConfig.templateId && emailConfig.publicKey);
   if(emailConfig.enabled && window.emailjs){ emailjs.init({publicKey: emailConfig.publicKey}); }
-  pushNotification('blue','Configuration enregistrée', emailConfig.enabled ? 'Les alertes e-mail réelles sont activées.' : 'Configuration incomplète : alertes en mode interne uniquement.');
+  pushNotification('blue','Configuration enregistrée', emailConfig.enabled ? 'Les alertes e-mail réelles sont activées.' : 'Configuration incomplète.');
   closeModal('settingsModal');
   computeAllStatuses(true);
 });
@@ -1208,14 +1181,17 @@ function sendAlertEmail(toEmail, toName, subject, message){
   }catch(err){ console.warn('EmailJS non disponible:', err); }
 }
 
-/* ---------------- ALERT STATUS ENGINE (signature feature) ---------------- */
 function computeAlertStatus(task){
-  const progress = task.progress;
-  if(progress >= 100){
-    return task.validation_status === 'valide'
-      ? {level:'green', label:'Validé'}
-      : {level:'blue', label:'En attente de validation'};
+  if(task.validation_status === 'en_attente'){
+    return {level:'teal', label:"En attente d'orientation"};
   }
+  if(task.validation_status === 'rejete'){
+    return {level:'red', label:'Orientation rejetée — à revoir'};
+  }
+  if(task.validation_status === 'archive'){
+    return {level:'green', label:'Archivée (100%)'};
+  }
+  const progress = task.progress;
   if(!task.due_date){ return {level:'blue', label:'À venir'}; }
 
   const due = new Date(task.due_date);
@@ -1230,13 +1206,13 @@ function computeAlertStatus(task){
     return {level:'red', label:'Retard non justifié'};
   }
   if(diffDays <= (emailConfig.threshold||3)){
-    return {level:'yellow', label:'Échéance proche'};
+    return {level:'yellow', label:'Échéance proche', diffDays};
   }
   return {level:'green', label:'Dans les temps'};
 }
 
 function ensureFlags(taskId){
-  if(!taskFlags[taskId]){ taskFlags[taskId] = {notifiedRed:false, notifiedYellow:false}; }
+  if(!taskFlags[taskId]){ taskFlags[taskId] = {notifiedRed:false, notifiedYellow:false, notifiedPin:false, notifiedOrientation:false}; }
   return taskFlags[taskId];
 }
 
@@ -1244,22 +1220,38 @@ function computeAllStatuses(silent){
   tasksCache.forEach(t=>{
     const flags = ensureFlags(t.id);
     const status = computeAlertStatus(t);
+
+    const shouldPin = t.validation_status === 'en_cours' && (status.level==='yellow' || status.level==='red');
+    if(shouldPin && !t.needs_attention){
+      t.needs_attention = true;
+      if(!demoMode) apiPatch(`/tasks/${t.id}`, {needs_attention:true}).catch(()=>{});
+    }
+
     if(!silent){
-      if(status.level==='red' && !flags.notifiedRed){
+      if(t.validation_status==='en_attente' && !flags.notifiedOrientation){
+        flags.notifiedOrientation = true;
+        pushNotification('teal', `Orientation à donner : ${t.title}`, `${t.created_by_name||'Un membre'} a proposé cette tâche.`);
+      }
+      if(t.needs_attention && !flags.notifiedPin){
+        flags.notifiedPin = true;
+        const msg = status.level==='red'
+          ? "En retard sans justification — ajoute un commentaire ou reprogramme l'échéance."
+          : `Échéance proche dans ${status.diffDays<=0?"moins d'un jour":status.diffDays+" jour(s)"}.`;
+        pushNotification(status.level, `Épinglée : ${t.title}`, msg);
+        [t.assignee_email, currentUser.email].filter(Boolean).forEach(email=>{
+          sendAlertEmail(email, t.assignee_name||currentUser.name, `[OrbitFlow] À traiter — "${t.title}"`, msg);
+        });
+      }
+      if(status.level==='red' && t.validation_status==='en_cours' && !flags.notifiedRed){
         flags.notifiedRed = true;
-        pushNotification('red', `Retard : ${t.title}`, `Échéance dépassée sans justification.`);
-        sendAlertEmail(t.assignee_email, t.assignee_name, `[OrbitFlow] Retard sur "${t.title}"`, `La tâche "${t.title}" a dépassé son échéance sans justification. Merci de mettre à jour son statut.`);
       }
       if(status.level==='yellow' && !flags.notifiedYellow){
         flags.notifiedYellow = true;
-        pushNotification('yellow', `Échéance proche : ${t.title}`, `Moins de ${emailConfig.threshold||3} jours restants.`);
-        sendAlertEmail(t.assignee_email, t.assignee_name, `[OrbitFlow] Échéance proche pour "${t.title}"`, `La tâche "${t.title}" arrive à échéance dans moins de ${emailConfig.threshold||3} jour(s).`);
       }
     }
   });
 }
 
-/* ---------------- API (avec repli démo) ---------------- */
 function authHeaders(){
   return authToken ? {'Authorization': `Bearer ${authToken}`} : {};
 }
@@ -1285,21 +1277,21 @@ function seedDemoData(){
   const in2 = new Date(Date.now()+2*86400000).toISOString().slice(0,10);
   const in10 = new Date(Date.now()+10*86400000).toISOString().slice(0,10);
   const past = new Date(Date.now()-3*86400000).toISOString().slice(0,10);
-  const dl = (text, done) => ({id:'d'+Math.random().toString(36).slice(2), text, done});
+  const dl = (text, done, critical) => ({id:'d'+Math.random().toString(36).slice(2), text, done, critical: !!critical});
   const createdAgo = (days) => new Date(Date.now()-days*86400000).toISOString();
   tasksCache = [
     {id:101, title:'Audit trimestriel des comptes', department_id:1,
-      deliverables:[dl('Rapport PDF signé', true), dl('Feuille Excel consolidée', false), dl('Note de synthèse pour la direction', false)],
-      progress:33, due_date:in2, assignee_name:'Jean Mballa', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null, created_at:createdAgo(5)},
+      deliverables:[dl('Rapport PDF signé', true, true), dl('Feuille Excel consolidée', false, false), dl('Note de synthèse', false, false)],
+      progress:33, due_date:in2, assignee_name:'Jean Mballa', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null,
+      needs_attention:false, created_by_name:'Chretien', created_by_email:'', created_by_role:'super_admin', created_at:createdAgo(5)},
     {id:102, title:'Campagne de recrutement Q3', department_id:2,
-      deliverables:[dl('Short-list de 5 candidats', false), dl("Grille d'entretien validée", false)],
-      progress:0, due_date:in10, assignee_name:'Awa Ngono', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null, created_at:createdAgo(2)},
+      deliverables:[dl('Short-list de 5 candidats', false, true), dl("Grille d'entretien validée", false, false)],
+      progress:0, due_date:in10, assignee_name:'Awa Ngono', assignee_email:'', validation_status:'en_attente', delay_reason:'', new_due_date:null,
+      needs_attention:false, created_by_name:'Awa Ngono', created_by_email:'', created_by_role:'employe', created_at:createdAgo(1)},
     {id:103, title:'Optimisation de la chaîne logistique', department_id:3,
-      deliverables:[dl('Note de synthèse', true)],
-      progress:100, due_date:past, assignee_name:'Paul Etoundi', assignee_email:'', validation_status:'en_attente', delay_reason:'', new_due_date:null, created_at:createdAgo(9)},
-    {id:104, title:'Clôture budgétaire annuelle', department_id:1,
-      deliverables:[dl('Tableau Excel consolidé', false), dl('Validation du DAF', false), dl('Archivage comptable', false)],
-      progress:0, due_date:past, assignee_name:'Sarah Biya', assignee_email:'', validation_status:'en_cours', delay_reason:'', new_due_date:null, created_at:createdAgo(12)},
+      deliverables:[dl('Note de synthèse', true, true)],
+      progress:100, due_date:past, assignee_name:'Paul Etoundi', assignee_email:'', validation_status:'archive', delay_reason:'', new_due_date:null,
+      needs_attention:false, created_by_name:'Chretien', created_by_email:'', created_by_role:'super_admin', created_at:createdAgo(9)},
   ];
 }
 
@@ -1348,7 +1340,7 @@ async function resolveDepartmentId(select, newInput){
       await loadDepartments();
       return dept.id;
     }
-  }catch(e){ /* repli local ci-dessous */ }
+  }catch(e){ }
   const id = Date.now();
   departmentsMap[id] = name;
   populateDeptSelect(document.getElementById('taskDept'));
@@ -1373,12 +1365,11 @@ async function loadTasks(){
 
 function renderDemoBanner(){
   const el = document.getElementById('demoBannerManagement');
-  el.innerHTML = demoMode ? `<div class="demo-banner"><i class="fa-solid fa-flask"></i> Mode démonstration : l'API backend n'a pas répondu, des données d'exemple sont affichées. Connecte ton API pour des données réelles.</div>` : '';
+  el.innerHTML = demoMode ? `<div class="demo-banner"><i class="fa-solid fa-flask"></i> Mode démonstration : l'API backend n'a pas répondu, des données d'exemple sont affichées.</div>` : '';
 }
 
-/* ---------------- RENDER: MATRIX + WEEKLY + EVAL ---------------- */
 function badgeClassFor(level){
-  return {blue:'badge-info', green:'badge-success', yellow:'badge-warning', red:'badge-danger', justified:'badge-justified'}[level];
+  return {blue:'badge-info', green:'badge-success', yellow:'badge-warning', red:'badge-danger', justified:'badge-justified', teal:'badge-teal'}[level];
 }
 function formatDateTime(iso){
   if(!iso) return '—';
@@ -1391,9 +1382,11 @@ function deliverablesSummary(t){
   const done = items.filter(d=>d.done).length;
   return `${done}/${items.length} livrable${items.length>1?'s':''} fourni${done>1?'s':''}`;
 }
-/** Statut simplifié à 3 valeurs pour Évaluation & Livrables, tel que demandé. */
+function pinFlag(t){
+  return t.needs_attention ? '<span class="pin-flag"><i class="fa-solid fa-thumbtack"></i> À traiter</span>' : '';
+}
 function evalStatus(t){
-  if(t.validation_status==='valide') return {key:'valide', label:'Validé', cls:'badge-success'};
+  if(t.validation_status==='archive') return {key:'valide', label:'Validé', cls:'badge-success'};
   const level = computeAlertStatus(t).level;
   if(level==='red' || level==='justified') return {key:'retard', label:'En retard', cls:'badge-danger'};
   return {key:'en_cours', label:'En cours', cls:'badge-info'};
@@ -1411,19 +1404,31 @@ function renderAll(){
 
 function renderMatrix(){
   const tbody = document.getElementById('mainTaskTable');
-  if(tasksCache.length===0){
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Aucune tâche configurée.</td></tr>';
+  const showArchived = document.getElementById('showArchivedToggle')?.checked;
+  let list = showArchived ? [...tasksCache] : tasksCache.filter(t=>t.validation_status!=='archive');
+  if(list.length===0){
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Aucune tâche à afficher.</td></tr>';
     return;
   }
-  const sorted = [...tasksCache].sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
-  tbody.innerHTML = sorted.map(t=>{
+  list.sort((a,b)=> (b.needs_attention?1:0)-(a.needs_attention?1:0) || new Date(b.created_at||0) - new Date(a.created_at||0));
+  tbody.innerHTML = list.map(t=>{
     const status = computeAlertStatus(t);
     const deptName = departmentsMap[t.department_id] || 'Général';
     const dueLabel = t.due_date ? new Date(t.due_date).toLocaleDateString('fr-FR') : '—';
-    const canJustify = status.level === 'red';
+    const canJustify = status.level === 'red' && t.validation_status==='en_cours';
+    const canReschedule = status.level === 'yellow' && t.validation_status==='en_cours';
+    const commentHtml = t.supervisor_comment 
+      ? `<br><span style="font-size:.76rem;color:var(--s-yellow);font-style:italic;"><i class="fa-solid fa-comment"></i> ${t.supervisor_comment}</span>` 
+      : '';
+
     return `
       <tr>
-        <td><span class="domain-pill">${deptName}</span><br><strong class="task-title-link" style="display:inline-block;margin-top:6px;" onclick="openTaskEditModal(${t.id})">${t.title}</strong><br><span class="deliverable-tag" style="margin-top:6px;"><i class="fa-solid fa-file-contract"></i> ${deliverablesSummary(t)}</span></td>
+        <td>
+          ${pinFlag(t)}<span class="domain-pill">${deptName}</span><br>
+          <strong class="task-title-link" style="display:inline-block;margin-top:6px;" onclick="openTaskEditModal(${t.id})">${t.title}</strong>
+          ${commentHtml}
+          <br><span class="deliverable-tag" style="margin-top:6px;"><i class="fa-solid fa-file-contract"></i> ${deliverablesSummary(t)}</span>
+        </td>
         <td class="mono" style="font-size:.76rem;">${formatDateTime(t.created_at)}</td>
         <td>${t.assignee_name ? t.assignee_name : '<span style="color:var(--text-muted);">Non assigné</span>'}</td>
         <td class="mono">${dueLabel}</td>
@@ -1437,6 +1442,7 @@ function renderMatrix(){
         <td style="display:flex;gap:6px;flex-wrap:wrap;">
           <button class="btn-sm btn-ghost" onclick="openTaskEditModal(${t.id})"><i class="fa-solid fa-pen"></i></button>
           ${canJustify ? `<button class="btn-sm btn-ghost" onclick="openDelayModal(${t.id})">Justifier</button>` : ''}
+          ${canReschedule ? `<button class="btn-sm btn-ghost" onclick="openRescheduleModal(${t.id})">Reprogrammer</button>` : ''}
           <button class="btn-sm btn-reject" onclick="quickDeleteTask(${t.id})"><i class="fa-solid fa-trash"></i></button>
         </td>
       </tr>`;
@@ -1458,7 +1464,7 @@ function renderWeekly(){
     const dueLabel = t.due_date ? new Date(t.due_date).toLocaleDateString('fr-FR') : '—';
     return `<tr>
       <td><span class="domain-pill">${deptName}</span></td>
-      <td><strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong></td>
+      <td>${pinFlag(t)} <strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong></td>
       <td class="mono" style="font-size:.76rem;">${formatDateTime(t.created_at)}</td>
       <td class="mono">${dueLabel}</td>
       <td>
@@ -1492,23 +1498,31 @@ function renderEval(){
 function renderValidationQueue(){
   const pendingTbody = document.getElementById('validationTable');
   const empty = document.getElementById('validationEmpty');
-  const pending = tasksCache.filter(t => t.progress>=100 && t.validation_status!=='valide');
-  document.getElementById('validationCount').style.display = pending.length>0 ? 'inline-flex' : 'none';
+  
+  const pending = tasksCache.filter(t => t.validation_status==='en_attente' || t.validation_status==='rejete');
+
+  document.getElementById('validationCount').style.display = pending.length > 0 ? 'inline-flex' : 'none';
   document.getElementById('validationCount').textContent = pending.length;
-  if(pending.length===0){ pendingTbody.innerHTML=''; empty.style.display='block'; }
-  else{
-    empty.style.display='none';
-    pendingTbody.innerHTML = pending.map(t=>{
+
+  if(pending.length === 0){ 
+    pendingTbody.innerHTML = ''; 
+    empty.style.display = 'block'; 
+  } else {
+    empty.style.display = 'none';
+    pendingTbody.innerHTML = pending.map(t => {
       const deptName = departmentsMap[t.department_id] || 'Général';
       return `<tr>
-        <td><strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong></td>
+        <td><strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong><br><span style="font-size:.72rem;color:var(--text-muted);">Proposée par ${t.created_by_name||'—'}</span></td>
         <td><span class="domain-pill">${deptName}</span></td>
         <td>${t.assignee_name||'—'}</td>
         <td>${deliverablesSummary(t)}</td>
-        <td><span class="status-badge ${t.validation_status==='rejete'?'badge-danger':'badge-neutral'}">${t.validation_status==='rejete'?'Rejeté — à revoir':'En attente'}</span></td>
+        <td>
+          <span class="status-badge ${t.validation_status==='rejete'?'badge-danger':'badge-teal'}">${t.validation_status==='rejete'?'Rejetée — à revoir':"Attend l'orientation"}</span>
+          ${t.supervisor_comment ? `<div class="hint" style="margin-top:6px;max-width:220px;"><i class="fa-solid fa-comment"></i> ${t.supervisor_comment}</div>` : ''}
+        </td>
         <td style="display:flex;gap:6px;">
-          <button class="btn-sm btn-approve" onclick="decideValidation(${t.id},'valide')"><i class="fa-solid fa-check"></i> Valider</button>
-          <button class="btn-sm btn-reject" onclick="decideValidation(${t.id},'rejete')"><i class="fa-solid fa-xmark"></i> Rejeter</button>
+          <button class="btn-sm btn-approve" onclick="decideOrientation(${t.id}, 'valide')"><i class="fa-solid fa-check"></i> Approuver</button>
+          <button class="btn-sm btn-reject" onclick="decideOrientation(${t.id}, 'rejete')"><i class="fa-solid fa-xmark"></i> Rejeter</button>
         </td>
       </tr>`;
     }).join('');
@@ -1516,14 +1530,15 @@ function renderValidationQueue(){
 
   const liveTbody = document.getElementById('validationLiveTable');
   if(liveTbody){
-    const active = [...tasksCache].filter(t=>t.validation_status!=='valide').sort((a,b)=> new Date(b.created_at||0) - new Date(a.created_at||0));
+    const active = [...tasksCache].filter(t=>t.validation_status==='en_cours')
+      .sort((a,b)=> (b.needs_attention?1:0)-(a.needs_attention?1:0) || new Date(b.created_at||0) - new Date(a.created_at||0));
     if(active.length===0){ liveTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Rien à suivre pour le moment.</td></tr>'; }
     else{
       liveTbody.innerHTML = active.map(t=>{
         const status = computeAlertStatus(t);
         const deptName = departmentsMap[t.department_id] || 'Général';
         return `<tr>
-          <td><strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong><br><span style="font-size:.72rem;color:var(--text-muted);">${deptName} · ${t.assignee_name||'Non assigné'}</span></td>
+          <td>${pinFlag(t)} <strong class="task-title-link" onclick="openTaskEditModal(${t.id})">${t.title}</strong><br><span style="font-size:.72rem;color:var(--text-muted);">${deptName} · ${t.assignee_name||'Non assigné'}</span></td>
           <td class="mono" style="font-size:.76rem;">${formatDateTime(t.created_at)}</td>
           <td>
             <div class="progress-wrapper">
@@ -1539,22 +1554,28 @@ function renderValidationQueue(){
   }
 }
 
-async function decideValidation(taskId, decision){
+async function decideOrientation(taskId, decision){
   const task = tasksCache.find(t=>t.id===taskId);
   if(!task) return;
-  task.validation_status = decision;
-  try{ if(!demoMode) await apiPatch(`/tasks/${taskId}/validate`, {decision}); }catch(e){ /* reste en local si l'API échoue */ }
+  let comment = null;
+  if(decision === 'rejete'){
+    comment = prompt("Explique en quelques mots ce qui ne va pas et l'orientation à suivre (obligatoire) :");
+    if(comment === null) return;
+    if(!comment.trim()){ alert('Un commentaire est requis pour rejeter et orienter la planification.'); return; }
+  }
+  task.validation_status = decision === 'valide' ? 'en_cours' : 'rejete';
+  task.supervisor_comment = comment;
+  try{ if(!demoMode) await apiPatch(`/tasks/${taskId}/orientation`, {decision, comment}); }catch(e){ }
   if(decision==='valide'){
-    pushNotification('green', `Livrable validé : ${task.title}`, `Le superviseur a validé ce livrable.`);
-    sendAlertEmail(task.assignee_email, task.assignee_name, `[OrbitFlow] Livrable validé — ${task.title}`, `Bonne nouvelle : ton livrable pour "${task.title}" a été validé par le superviseur.`);
+    pushNotification('green', `Orientation approuvée : ${task.title}`, `Le superviseur a donné le feu vert — les travaux peuvent démarrer.`);
+    sendAlertEmail(task.assignee_email, task.assignee_name, `[OrbitFlow] Feu vert donné — ${task.title}`, `Ta planification pour "${task.title}" a été approuvée. Tu peux démarrer les travaux.`);
   } else {
-    pushNotification('red', `Livrable rejeté : ${task.title}`, `Le superviseur a demandé une révision.`);
-    sendAlertEmail(task.assignee_email, task.assignee_name, `[OrbitFlow] Révision demandée — ${task.title}`, `Ton livrable pour "${task.title}" a été rejeté et nécessite une révision.`);
+    pushNotification('red', `Orientation rejetée : ${task.title}`, comment);
+    sendAlertEmail(task.assignee_email, task.assignee_name, `[OrbitFlow] Orientation à revoir — ${task.title}`, `Le superviseur a rejeté la planification de "${task.title}" avec le commentaire suivant : "${comment}". Ajuste la tâche puis elle repassera en validation.`);
   }
   renderAll();
 }
 
-/* ---------------- DELAY JUSTIFICATION ---------------- */
 function openDelayModal(taskId){
   document.getElementById('delayTaskId').value = taskId;
   document.getElementById('delayReason').value = '';
@@ -1570,15 +1591,47 @@ document.getElementById('delayForm').addEventListener('submit', async (e)=>{
   const newDate = document.getElementById('delayNewDate').value;
   task.delay_reason = reason;
   if(newDate) task.new_due_date = newDate;
+  task.needs_attention = false;
   ensureFlags(taskId).notifiedRed = false;
-  try{ if(!demoMode) await apiPatch(`/tasks/${taskId}`, {delay_reason: reason, new_due_date: newDate || null}); }catch(e){ /* reste en local si l'API échoue */ }
+  ensureFlags(taskId).notifiedPin = false;
+  try{ if(!demoMode) await apiPatch(`/tasks/${taskId}`, {delay_reason: reason, new_due_date: newDate || null, last_comment: reason}); }catch(e){ }
   pushNotification('justified', `Retard justifié : ${task.title}`, `Une raison a été enregistrée.`);
   closeModal('delayModal');
   renderAll();
 });
 
-/* ---------------- EDITION / SUPPRESSION DE TACHE ---------------- */
+function openRescheduleModal(taskId){
+  document.getElementById('rescheduleTaskId').value = taskId;
+  const task = tasksCache.find(t=>t.id===taskId);
+  document.getElementById('rescheduleNewDate').value = task?.due_date || '';
+  document.getElementById('rescheduleComment').value = '';
+  openModal('rescheduleModal');
+}
+document.getElementById('rescheduleForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const taskId = parseInt(document.getElementById('rescheduleTaskId').value);
+  const task = tasksCache.find(t=>t.id===taskId);
+  if(!task) return;
+  const newDate = document.getElementById('rescheduleNewDate').value;
+  const comment = document.getElementById('rescheduleComment').value.trim();
+  task.due_date = newDate;
+  task.needs_attention = false;
+  ensureFlags(taskId).notifiedYellow = false;
+  ensureFlags(taskId).notifiedPin = false;
+  try{
+    if(!demoMode){
+      const payload = {due_date: newDate};
+      if(comment) payload.last_comment = comment;
+      await apiPatch(`/tasks/${taskId}`, payload);
+    }
+  }catch(e){ }
+  pushNotification('blue', `Tâche reprogrammée : ${task.title}`, `Nouvelle échéance : ${new Date(newDate).toLocaleDateString('fr-FR')}.`);
+  closeModal('rescheduleModal');
+  renderAll();
+});
+
 let editDeliverablesState = [];
+let editTaskLocked = false;
 
 function openTaskEditModal(taskId){
   const task = tasksCache.find(t=>t.id===taskId);
@@ -1588,22 +1641,35 @@ function openTaskEditModal(taskId){
   document.getElementById('editTaskDueDate').value = task.due_date || '';
   document.getElementById('editTaskAssigneeName').value = task.assignee_name || '';
   document.getElementById('editTaskAssigneeEmail').value = task.assignee_email || '';
-  document.getElementById('editTaskCreatedAt').innerHTML = `<i class="fa-solid fa-clock"></i> Créée le ${formatDateTime(task.created_at)}`;
+  const orientationNote = task.validation_status==='en_attente'
+    ? `<div class="hint" style="color:var(--s-teal);"><i class="fa-solid fa-hourglass-half"></i> En attente d'orientation du superviseur — les livrables ne peuvent pas encore être cochés.</div>`
+    : task.validation_status==='rejete'
+    ? `<div class="hint" style="color:var(--s-red);"><i class="fa-solid fa-triangle-exclamation"></i> Orientation rejetée${task.supervisor_comment?` : "${task.supervisor_comment}"`:''}. Modifie la tâche pour la resoumettre.</div>`
+    : '';
+  document.getElementById('editTaskCreatedAt').innerHTML = `<i class="fa-solid fa-clock"></i> Créée le ${formatDateTime(task.created_at)} par ${task.created_by_name||'—'} ${orientationNote}`;
   populateDeptSelect(document.getElementById('editTaskDept'));
   document.getElementById('editTaskDept').value = task.department_id;
   editDeliverablesState = (task.deliverables || []).map(d=>({...d}));
+  editTaskLocked = task.validation_status==='en_attente' || task.validation_status==='rejete';
   renderEditChecklist();
   openModal('taskEditModal');
 }
 
 function renderEditChecklist(){
   const container = document.getElementById('editTaskChecklist');
+  if(editTaskLocked){
+    container.innerHTML = `<p class="hint" style="color:var(--s-teal);"><i class="fa-solid fa-lock"></i> Les livrables se débloquent dès que le superviseur approuve l'orientation.</p>` +
+      editDeliverablesState.map(d=>`<div class="checklist-item"><span class="cl-star ${d.critical?'active':''}"><i class="fa-solid fa-star"></i></span><span class="cl-text">${d.text}</span></div>`).join('');
+    document.getElementById('editTaskProgressLabel').textContent = '';
+    return;
+  }
   if(editDeliverablesState.length===0){
     container.innerHTML = '<p class="hint">Aucun livrable pour le moment — ajoute la première ligne ci-dessous.</p>';
   } else {
     container.innerHTML = editDeliverablesState.map((d,i)=>`
-      <div class="checklist-item ${d.done?'done':''}">
+      <div class="checklist-item ${d.done?'done':''} ${d.critical?'critical':''}">
         <div class="check-circle ${d.done?'checked':''}" onclick="toggleEditDeliverable(${i})">${d.done?'<i class="fa-solid fa-check"></i>':''}</div>
+        <span class="cl-star ${d.critical?'active':''}" onclick="toggleEditDeliverableCritical(${i})" title="Marquer comme étape critique"><i class="fa-solid fa-star"></i></span>
         <span class="cl-text">${d.text}</span>
         <i class="fa-solid fa-trash jdelete" onclick="removeEditDeliverable(${i})"></i>
       </div>`).join('');
@@ -1613,13 +1679,15 @@ function renderEditChecklist(){
   const pct = total ? Math.round(done/total*100) : 0;
   document.getElementById('editTaskProgressLabel').textContent = total ? `Progression : ${done}/${total} livrables (${pct}%)` : 'Progression : 0% (aucun livrable défini)';
 }
-function toggleEditDeliverable(i){ editDeliverablesState[i].done = !editDeliverablesState[i].done; renderEditChecklist(); }
-function removeEditDeliverable(i){ editDeliverablesState.splice(i,1); renderEditChecklist(); }
+function toggleEditDeliverable(i){ if(editTaskLocked) return; editDeliverablesState[i].done = !editDeliverablesState[i].done; renderEditChecklist(); }
+function toggleEditDeliverableCritical(i){ if(editTaskLocked) return; editDeliverablesState[i].critical = !editDeliverablesState[i].critical; renderEditChecklist(); }
+function removeEditDeliverable(i){ if(editTaskLocked) return; editDeliverablesState.splice(i,1); renderEditChecklist(); }
 function addEditDeliverable(){
+  if(editTaskLocked) return;
   const input = document.getElementById('editTaskNewDeliverable');
   const text = input.value.trim();
   if(!text) return;
-  editDeliverablesState.push({id: 'tmp'+Date.now(), text, done:false});
+  editDeliverablesState.push({id: 'tmp'+Date.now(), text, done:false, critical:false});
   input.value = '';
   renderEditChecklist();
 }
@@ -1631,20 +1699,28 @@ document.getElementById('taskEditForm').addEventListener('submit', async (e)=>{
   if(!task) return;
   const deptSelect = document.getElementById('editTaskDept');
   const department_id = parseInt(deptSelect.value) || task.department_id;
+  const commentInput = document.getElementById('editTaskComment');
+  const comment = commentInput ? commentInput.value.trim() : '';
+  const dueDateVal = document.getElementById('editTaskDueDate').value || null;
+  const rescheduled = dueDateVal !== task.due_date;
   const payload = {
     title: document.getElementById('editTaskTitle').value.trim(),
     department_id,
-    due_date: document.getElementById('editTaskDueDate').value || null,
+    due_date: dueDateVal,
     assignee_name: document.getElementById('editTaskAssigneeName').value.trim(),
     assignee_email: document.getElementById('editTaskAssigneeEmail').value.trim(),
-    deliverables: editDeliverablesState.map(d=>({id: d.id && !String(d.id).startsWith('tmp') ? d.id : undefined, text:d.text, done:d.done})),
+    deliverables: editDeliverablesState.map(d=>({id: d.id && !String(d.id).startsWith('tmp') ? d.id : undefined, text:d.text, done:d.done, critical:!!d.critical})),
   };
+  if(comment){ payload.last_comment = comment; }
   Object.assign(task, payload);
   task.deliverables = editDeliverablesState;
   task.progress = editDeliverablesState.length ? Math.round(editDeliverablesState.filter(d=>d.done).length/editDeliverablesState.length*100) : 0;
-  if(task.progress>=100 && task.validation_status==='en_cours') task.validation_status='en_attente';
-  else if(task.progress<100 && task.validation_status==='en_attente') task.validation_status='en_cours';
-  try{ if(!demoMode) { const updated = await apiPatch(`/tasks/${taskId}`, payload); Object.assign(task, updated); } }catch(err){ /* reste en local si l'API échoue */ }
+  if(task.progress>=100 && task.validation_status==='en_cours'){ task.validation_status='archive'; }
+  else if(task.progress<100 && task.validation_status==='archive'){ task.validation_status='en_cours'; }
+  if(comment || rescheduled){ task.needs_attention = false; }
+  if(task.validation_status==='rejete'){ task.validation_status='en_attente'; task.supervisor_comment=null; }
+  try{ if(!demoMode) { const updated = await apiPatch(`/tasks/${taskId}`, payload); Object.assign(task, updated); } }catch(err){ }
+  if(commentInput) commentInput.value = '';
   closeModal('taskEditModal');
   pushNotification('blue', `Tâche modifiée : ${task.title}`, `Les changements ont été enregistrés.`);
   renderAll();
@@ -1660,17 +1736,15 @@ async function quickDeleteTask(taskId){
   const task = tasksCache.find(t=>t.id===taskId);
   if(!task) return;
   if(!confirm(`Supprimer définitivement la tâche "${task.title}" ? Cette action est irréversible.`)) return;
-  try{ if(!demoMode) await fetch(`${API_URL}/tasks/${taskId}`, {method:'DELETE', headers: authHeaders()}); }catch(e){ /* suppression locale malgré tout */ }
+  try{ if(!demoMode) await fetch(`${API_URL}/tasks/${taskId}`, {method:'DELETE', headers: authHeaders()}); }catch(e){ }
   tasksCache = tasksCache.filter(t=>t.id!==taskId);
   delete taskFlags[taskId];
-  pushNotification('red', `Tâche supprimée`, `"${task.title}" a été retirée de la planification.`);
+  pushNotification('red', `Tâche supprimée`, `"${task.title}" a été retirée.`);
   renderAll();
 }
 
-/* ---------------- DAILY JOURNAL (cahier de charge) ---------------- */
 let journalCycle = 'daily';
 
-/** Calcule la clé de "cycle" (bucket) contenant une date donnée, selon le mode choisi. */
 function journalCycleKeyFor(dateStr, cycle){
   const d = new Date(dateStr+'T00:00:00');
   if(cycle==='daily') return dateStr;
@@ -1679,8 +1753,7 @@ function journalCycleKeyFor(dateStr, cycle){
     const bucketStart = Math.floor(epochDays/3)*3;
     return new Date(bucketStart*86400000).toISOString().slice(0,10);
   }
-  // weekly : on aligne sur le lundi de la semaine
-  const day = (d.getDay()+6)%7; // 0=lundi
+  const day = (d.getDay()+6)%7;
   const monday = new Date(d.getTime() - day*86400000);
   return monday.toISOString().slice(0,10);
 }
@@ -1746,7 +1819,6 @@ function deleteJournalItem(id){
 }
 document.getElementById('journalNewItem').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); addJournalItem(); } });
 
-/* ----- Historique (consultation d'un cycle passé, lecture seule) ----- */
 function viewJournalHistory(){
   const dateVal = document.getElementById('journalHistoryDate').value;
   const list = document.getElementById('journalHistoryList');
@@ -1764,7 +1836,6 @@ function viewJournalHistory(){
     </li>`).join('');
 }
 
-/* ----- Export CSV / Excel du cahier de charge courant ----- */
 function currentJournalRows(){
   const items = dailyJournal[journalKey()] || [];
   return items.map(it => ({
@@ -1797,8 +1868,6 @@ function exportJournalExcel(){
   XLSX.writeFile(wb, `cahier-de-charge-${todayStr()}.xlsx`);
 }
 
-
-/* ---------------- ANALYTICS ---------------- */
 function renderAnalytics(){
   if(tasksCache.length===0){
     document.getElementById('kpiAvgProgress').textContent='0%';
@@ -1806,17 +1875,18 @@ function renderAnalytics(){
     document.getElementById('kpiYellow').textContent='0';
     document.getElementById('kpiRed').textContent='0';
     document.getElementById('kpiJustified').textContent='0';
+    document.getElementById('kpiOrientation').textContent='0';
     updateCharts({},{});
     return;
   }
   let totalProgress=0, completed=0;
-  let statusCounts = {'Vert':0,'Jaune':0,'Rouge':0,'Bleu':0,'Violet':0};
+  let statusCounts = {'Vert':0,'Jaune':0,'Rouge':0,'Bleu':0,'Violet':0,'Orientation':0};
   let deptSums={}, deptCounts={};
   tasksCache.forEach(t=>{
     const status = computeAlertStatus(t);
     totalProgress += t.progress;
-    if(t.validation_status==='valide') completed++;
-    const map = {green:'Vert', yellow:'Jaune', red:'Rouge', blue:'Bleu', justified:'Violet'};
+    if(t.validation_status==='archive') completed++;
+    const map = {green:'Vert', yellow:'Jaune', red:'Rouge', blue:'Bleu', justified:'Violet', teal:'Orientation'};
     statusCounts[map[status.level]]++;
     const deptName = departmentsMap[t.department_id] || 'Général';
     deptSums[deptName] = (deptSums[deptName]||0) + t.progress;
@@ -1827,6 +1897,7 @@ function renderAnalytics(){
   document.getElementById('kpiYellow').textContent = statusCounts['Jaune'];
   document.getElementById('kpiRed').textContent = statusCounts['Rouge'];
   document.getElementById('kpiJustified').textContent = statusCounts['Violet'];
+  document.getElementById('kpiOrientation').textContent = statusCounts['Orientation'];
   let deptAvg={};
   Object.keys(deptSums).forEach(d=>{ deptAvg[d] = Math.round(deptSums[d]/deptCounts[d]); });
   updateCharts(statusCounts, deptAvg);
@@ -1846,7 +1917,7 @@ function updateCharts(statusCounts, deptAverages){
   if(doughnutChartInstance) doughnutChartInstance.destroy();
   doughnutChartInstance = new Chart(ctxD, {
     type:'doughnut',
-    data:{ labels:Object.keys(statusCounts), datasets:[{ data:Object.values(statusCounts), backgroundColor:['#12b886','#f5a524','#f0454f','#3b7dfb','#8457f5'] }]},
+    data:{ labels:Object.keys(statusCounts), datasets:[{ data:Object.values(statusCounts), backgroundColor:['#12b886','#f5a524','#f0454f','#3b7dfb','#8457f5','#0891b2'] }]},
     options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}} }
   });
   const ctxB = document.getElementById('deptBarChart').getContext('2d');
@@ -1858,7 +1929,6 @@ function updateCharts(statusCounts, deptAverages){
   });
 }
 
-/* ---------------- FORMS: DEPT / TASK ---------------- */
 document.getElementById('deptForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const name = document.getElementById('deptName').value;
@@ -1875,29 +1945,43 @@ let newTaskDeliverablesState = [];
 function renderNewTaskDeliverables(){
   const container = document.getElementById('newTaskDeliverables');
   if(newTaskDeliverablesState.length===0){ container.innerHTML=''; return; }
-  container.innerHTML = `<div class="chip-list">${newTaskDeliverablesState.map((txt,i)=>`
-    <span class="chip">${txt}<span class="rm" onclick="removeNewTaskDeliverable(${i})"><i class="fa-solid fa-xmark"></i></span></span>`).join('')}</div>`;
+  container.innerHTML = `<div class="chip-list">${newTaskDeliverablesState.map((d,i)=>`
+    <span class="chip ${d.critical?'critical':''}">
+      <span class="star-toggle ${d.critical?'active':''}" onclick="toggleNewTaskDeliverableCritical(${i})" title="Marquer comme étape critique"><i class="fa-solid fa-star"></i></span>
+      ${d.text}<span class="rm" onclick="removeNewTaskDeliverable(${i})"><i class="fa-solid fa-xmark"></i></span>
+    </span>`).join('')}</div>
+    <div class="hint">Coche l'étoile ⭐ pour marquer les étapes critiques.</div>`;
 }
 function addNewTaskDeliverable(){
   const input = document.getElementById('taskDeliverableInput');
   const text = input.value.trim();
   if(!text) return;
-  newTaskDeliverablesState.push(text);
+  newTaskDeliverablesState.push({text, critical:false});
   input.value = '';
   renderNewTaskDeliverables();
 }
+function toggleNewTaskDeliverableCritical(i){ newTaskDeliverablesState[i].critical = !newTaskDeliverablesState[i].critical; renderNewTaskDeliverables(); }
 function removeNewTaskDeliverable(i){ newTaskDeliverablesState.splice(i,1); renderNewTaskDeliverables(); }
 
 document.getElementById('taskForm').addEventListener('submit', async (e)=>{
   e.preventDefault();
   const title = document.getElementById('taskTitle').value;
+  if(newTaskDeliverablesState.length===0){
+    alert('Ajoute au moins un livrable attendu avant de planifier la tâche.');
+    return;
+  }
+  if(!newTaskDeliverablesState.some(d=>d.critical)){
+    alert("Choisis au moins une étape critique (étoile ⭐) parmi les livrables.");
+    return;
+  }
   const deptSelect = document.getElementById('taskDept');
   const department_id = await resolveDepartmentId(deptSelect, document.getElementById('taskNewDeptInput'));
   if(!department_id){ alert('Choisis ou crée un domaine avant de planifier la tâche.'); return; }
   const dueDate = document.getElementById('taskDueDate').value;
   const assigneeName = document.getElementById('taskAssigneeName').value;
   const assigneeEmail = document.getElementById('taskAssigneeEmail').value;
-  const deliverables = [...newTaskDeliverablesState];
+  const deliverables = newTaskDeliverablesState.map(d=>({text:d.text, critical:d.critical, done:false}));
+  const isSupervisorLike = currentUser.role === 'superviseur' || currentUser.role === 'super_admin';
 
   let newTask;
   try{
@@ -1908,18 +1992,26 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
       });
     } else { throw new Error('demo'); }
   }catch(err){
-    const items = deliverables.map(txt=>({id:'tmp'+Math.random().toString(36).slice(2), text:txt, done:false}));
+    const items = deliverables.map(d=>({id:'tmp'+Math.random().toString(36).slice(2), text:d.text, critical:d.critical, done:false}));
     newTask = {
       id: Date.now(), title, department_id, deliverables: items, progress: 0,
       due_date: dueDate || null, new_due_date: null, assignee_name: assigneeName, assignee_email: assigneeEmail,
-      validation_status: 'en_cours', delay_reason: '', created_at: new Date().toISOString(),
+      validation_status: isSupervisorLike ? 'en_cours' : 'en_attente', delay_reason: '', needs_attention: false,
+      created_by_name: currentUser.name, created_by_email: currentUser.email, created_by_role: currentUser.role,
+      created_at: new Date().toISOString(),
     };
   }
   if(newTask && !tasksCache.find(t=>t.id===newTask.id)) tasksCache.push(newTask);
   ensureFlags(newTask.id);
 
-  pushNotification('blue', `Nouvelle tâche : ${title}`, `Assignée à ${assigneeName || 'déterminer'} — échéance ${dueDate ? new Date(dueDate).toLocaleDateString('fr-FR') : 'non fixée'}.`);
-  sendAlertEmail(assigneeEmail, assigneeName, `[OrbitFlow] Nouvelle tâche assignée — ${title}`, `Une nouvelle tâche "${title}" t'a été assignée. Échéance : ${dueDate || 'non fixée'}.`);
+  const orientationNote = newTask.validation_status === 'en_attente'
+    ? " Elle attend l'orientation du superviseur."
+    : '';
+  pushNotification('blue', `Nouvelle tâche : ${title}`, `Assignée à ${assigneeName || 'déterminer'}.${orientationNote}`);
+  [assigneeEmail, currentUser.email].filter(Boolean).forEach(email=>{
+    sendAlertEmail(email, assigneeName || currentUser.name, `[OrbitFlow] Nouvelle tâche planifiée — ${title}`,
+      `La tâche "${title}" vient d'être planifiée.${orientationNote}`);
+  });
 
   document.getElementById('taskTitle').value='';
   document.getElementById('taskDueDate').value='';
@@ -1933,7 +2025,6 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
   renderAll();
 });
 
-/* ---------------- PRICING / PAYMENT ---------------- */
 const planKeyMap = {'Découverte':'decouverte', 'Business Pro':'business_pro', 'Entreprise':'entreprise'};
 let pendingPlanKey = 'decouverte';
 function selectPlan(name){ activePlan = name; }
@@ -1958,19 +2049,18 @@ document.getElementById('paymentForm').addEventListener('submit', async (e)=>{
       document.getElementById('currentPlanBadge').textContent = `Plan ${activePlan}`;
     }
     document.getElementById('currentPlanBadge').style.background = 'linear-gradient(135deg,#12b886,#0a8a5f)';
-    alert(`Félicitations ! Votre abonnement ${activePlan} est activé avec succès.`);
+    alert(`Abonnement ${activePlan} activé avec succès !`);
   }catch(err){
-    alert(`L'abonnement ${activePlan} a été enregistré côté démonstration (connecte-toi en Super Administrateur pour un encaissement réel).`);
+    alert(`L'abonnement ${activePlan} a été enregistré en mode démonstration.`);
   }
   closePaymentModal();
 });
 
-/* ---------------- EQUIPE & INVITATIONS ---------------- */
 async function openTeamModal(){
   openModal('teamModal');
   document.getElementById('inviteResult').innerHTML = '';
   if(demoMode || !authToken){
-    document.getElementById('teamList').innerHTML = '<p class="hint">Connecte-toi avec un vrai compte Super Administrateur pour gérer ton équipe (le mode démonstration ne persiste pas les invitations).</p>';
+    document.getElementById('teamList').innerHTML = '<p class="hint">Connecte-toi avec un vrai compte Super Administrateur pour gérer ton équipe.</p>';
     return;
   }
   try{
@@ -1981,7 +2071,7 @@ async function openTeamModal(){
         <span class="status-badge ${m.status==='actif'?'badge-success':'badge-warning'}">${m.status}</span>
       </div>`).join('') || '<p class="hint">Aucun membre pour le moment.</p>';
   }catch(e){
-    document.getElementById('teamList').innerHTML = '<p class="hint">Impossible de charger l\'équipe pour le moment.</p>';
+    document.getElementById('teamList').innerHTML = '<p class="hint">Impossible de charger l\'équipe.</p>';
   }
 }
 
@@ -2000,19 +2090,18 @@ document.getElementById('inviteForm').addEventListener('submit', async (e)=>{
     if(entry.status === 'invité'){
       const link = `${location.origin}${location.pathname}?invite=${entry.invite_token}`;
       resultEl.innerHTML = `
-        <p class="hint" style="color:var(--s-green);margin-top:12px;">Invitation créée pour ${email}. Partage ce lien (par e-mail, Slack, etc.) :</p>
+        <p class="hint" style="color:var(--s-green);margin-top:12px;">Invitation créée pour ${email}. Partage ce lien :</p>
         <div class="invite-link-box"><input type="text" readonly value="${link}" onclick="this.select()"><i class="fa-solid fa-copy" style="cursor:pointer;" onclick="navigator.clipboard.writeText('${link}')"></i></div>`;
     } else {
-      resultEl.innerHTML = `<p class="hint" style="color:var(--s-yellow);">${email} a déjà un compte dans l'organisation.</p>`;
+      resultEl.innerHTML = `<p class="hint" style="color:var(--s-yellow);">${email} a déjà un compte.</p>`;
     }
     document.getElementById('inviteEmailInput').value = '';
     openTeamModal();
   }catch(err){
-    resultEl.innerHTML = '<p class="hint" style="color:var(--s-red);">Impossible de créer l\'invitation pour le moment.</p>';
+    resultEl.innerHTML = '<p class="hint" style="color:var(--s-red);">Impossible de créer l\'invitation.</p>';
   }
 });
 
-/* ---------------- FEEDBACK / AVIS ---------------- */
 document.querySelectorAll('.star-input').forEach(star=>{
   star.addEventListener('click', ()=>{
     selectedStarRating = parseInt(star.dataset.v);
@@ -2027,12 +2116,11 @@ document.getElementById('feedbackForm').addEventListener('submit', async (e)=>{
   if(!message) return;
   try{
     if(!demoMode && authToken){ await apiPost('/feedback/', {message, rating: selectedStarRating}); }
-  }catch(err){ /* on remercie quand même l'utilisateur, l'avis reste utile même non transmis */ }
+  }catch(err){ }
   document.getElementById('feedbackMessage').value = '';
   pushNotification('green', 'Merci pour ton avis !', 'Ton retour aide à améliorer OrbitFlow.');
 });
 
-/* ---------------- EXPORT / IMPORT ---------------- */
 function exportData(){
   const payload = { departmentsMap, tasksCache, dailyJournal, emailConfig, exportedAt:new Date().toISOString() };
   const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
@@ -2056,22 +2144,19 @@ function importData(event){
       demoMode = false;
       renderDemoBanner();
       loadDepartments().then(renderAll);
-      pushNotification('green','Sauvegarde importée','Les données ont été restaurées avec succès.');
+      pushNotification('green','Sauvegarde importée','Données restaurées.');
     }catch(err){ alert('Fichier de sauvegarde invalide.'); }
   };
   reader.readAsText(file);
 }
 
-/* ---------------- INIT ---------------- */
 document.addEventListener('DOMContentLoaded', async ()=>{
   checkInviteInUrl();
-  demoMode = true; // affichage de démonstration en arrière-plan tant que personne n'est connecté
+  demoMode = true;
   await loadDepartments();
   await loadTasks();
-  setInterval(()=>computeAllStatuses(false), 60000); // vérifie les échéances chaque minute pendant que la page est ouverte
+  setInterval(()=>computeAllStatuses(false), 60000);
 });
 </script>
 </body>
 </html>
-
-
