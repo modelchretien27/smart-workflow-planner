@@ -1,11 +1,10 @@
 import os
 import uuid
 import json
-import hashlib
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
 
-from fastapi import FastAPI, HTTPException, Depends, Header, Request, status
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 from sqlalchemy import (
@@ -14,10 +13,11 @@ from sqlalchemy import (
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
+from passlib.context import CryptContext
 from jose import jwt, JWTError
 
 # =========================================================================
-# 1. CONFIGURATION ET CONNEXION BASE DE DONNEES
+# 1. CONFIGURATION
 # =========================================================================
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
@@ -25,34 +25,37 @@ if not DATABASE_URL:
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# Connexion SSL robuste pour Neon / Render
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_recycle=300,
-    connect_args={"connect_timeout": 10} if "postgresql" in DATABASE_URL else {}
-)
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+# IMPORTANT (à définir en variables d'environnement sur Render, jamais en dur en prod) :
 SECRET_KEY = os.getenv("SECRET_KEY", "orbitflow-dev-secret-change-me-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 jours
 
+# Clé du FONDATEUR (toi) pour déverrouiller la console admin globale.
+# Change impérativement cette valeur via la variable d'environnement FOUNDER_ADMIN_KEY sur Render.
 FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "changeme-founder-key")
+
 PLAN_PRICES = {"decouverte": 0.0, "business_pro": 29.0, "entreprise": 99.0}
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
 def hash_password(password: str) -> str:
-    salt = SECRET_KEY[:16]
-    return hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt.encode('utf-8'), 100000).hex()
+    return pwd_context.hash(password)
+
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hash_password(password) == hashed
+    return pwd_context.verify(password, hashed)
+
 
 def create_access_token(data: dict, expires_delta: timedelta):
     payload = data.copy()
     payload["exp"] = datetime.utcnow() + expires_delta
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
 
 def decode_token(token: str) -> dict:
     try:
@@ -68,7 +71,7 @@ class OrganizationDB(Base):
     __tablename__ = "organizations"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
-    sector = Column(String, default="Autre")
+    sector = Column(String, default="Autre")          # secteur / type d'entreprise
     plan = Column(String, default="decouverte")
     owner_email = Column(String, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -83,9 +86,9 @@ class UserDB(Base):
     name = Column(String)
     email = Column(String, unique=True, index=True)
     password_hash = Column(String, nullable=True)
-    role = Column(String, default="employe")
+    role = Column(String, default="employe")           # super_admin | superviseur | employe
     organization_id = Column(Integer, ForeignKey("organizations.id"))
-    is_active = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=False)          # False tant que l'invitation n'est pas acceptée
     invite_token = Column(String, unique=True, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -105,7 +108,7 @@ class TaskDB(Base):
     __tablename__ = "tasks"
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, index=True)
-    deliverables_json = Column(Text, default="[]")
+    deliverables_json = Column(Text, default="[]")  # JSON: [{"id","text","done","critical"}, ...]
     department_id = Column(Integer, ForeignKey("departments.id"))
     organization_id = Column(Integer, ForeignKey("organizations.id"))
 
@@ -113,10 +116,23 @@ class TaskDB(Base):
     new_due_date = Column(Date, nullable=True)
     assignee_name = Column(String, nullable=True)
     assignee_email = Column(String, nullable=True)
-    validation_status = Column(String, default="en_cours")  # en_attente_cadrage | en_cours | en_attente | valide | rejete
-    supervisor_comment = Column(Text, nullable=True)        # Observations et orientations du superviseur
-    delay_reason = Column(Text, nullable=True)
+
+    # Cycle de vie : en_attente (orientation à valider par le superviseur avant démarrage) |
+    # en_cours (orientation approuvée, travaux en cours) | rejete (orientation refusée, à revoir) |
+    # archive (100% des livrables faits -> archivage automatique, plus besoin de validation finale)
+    validation_status = Column(String, default="en_cours")
+    supervisor_comment = Column(Text, nullable=True)   # orientation / motif de rejet donné par le superviseur
     validated_by = Column(String, nullable=True)
+
+    created_by_name = Column(String, nullable=True)
+    created_by_email = Column(String, nullable=True)
+    created_by_role = Column(String, nullable=True)
+
+    delay_reason = Column(Text, nullable=True)          # justification si en retard une fois en_cours
+    needs_attention = Column(Boolean, default=False)     # "épinglée" quand l'échéance approche (<=3j)
+    last_comment = Column(Text, nullable=True)
+    last_comment_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -144,8 +160,16 @@ class SubscriptionDB(Base):
 
 Base.metadata.create_all(bind=engine)
 
+# NOTE DE MIGRATION IMPORTANTE :
+# Cette version ajoute des colonnes à "tasks" (created_by_*, supervisor_comment, needs_attention,
+# last_comment, last_comment_at) et change le sens de "validation_status" (voir commentaire sur
+# le modèle TaskDB). `create_all` ne modifie PAS les tables existantes (il ne crée que celles qui
+# manquent). Avant de redéployer, supprime la table "tasks" (DROP TABLE tasks;) sur Neon puis
+# relance l'app pour qu'elle la recrée avec le nouveau schéma. Les anciennes tâches seront perdues —
+# exporte-les avant si besoin (SELECT * FROM tasks;).
+
 # =========================================================================
-# 3. APPLICATION FASTAPI & MIDDLEWARES
+# 3. APPLICATION FASTAPI
 # =========================================================================
 app = FastAPI(
     title="OrbitFlow API",
@@ -155,7 +179,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # En production, restreins à ton domaine front-end (Vercel) précis.
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -170,6 +194,7 @@ def get_db():
         db.close()
 
 
+# ------------------------- Dépendances d'authentification -------------------------
 def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)) -> UserDB:
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Authentification requise.")
@@ -206,35 +231,44 @@ def get_current_founder(authorization: Optional[str] = Header(None)):
 class DepartmentCreate(BaseModel):
     name: str
 
+
 class DeliverableItem(BaseModel):
     id: Optional[str] = None
     text: str
     done: bool = False
+    critical: bool = False
+
 
 class TaskCreate(BaseModel):
     title: str
     department_id: int
-    deliverables: List[str] = []
+    deliverables: List[DeliverableItem] = []
     due_date: Optional[date] = None
     assignee_name: Optional[str] = None
     assignee_email: Optional[EmailStr] = None
 
+
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
     department_id: Optional[int] = None
-    deliverables: Optional[List[DeliverableItem]] = None
+    deliverables: Optional[List[DeliverableItem]] = None  # remplace intégralement la checklist
     due_date: Optional[date] = None
     assignee_name: Optional[str] = None
     assignee_email: Optional[EmailStr] = None
     delay_reason: Optional[str] = None
     new_due_date: Optional[date] = None
+    needs_attention: Optional[bool] = None
+    last_comment: Optional[str] = None
+
 
 class DeliverableToggle(BaseModel):
     done: bool
 
-class TaskValidate(BaseModel):
-    decision: str
+
+class OrientationDecision(BaseModel):
+    decision: str  # 'valide' | 'rejete'
     comment: Optional[str] = None
+
 
 class RegisterOrganization(BaseModel):
     organization_name: str
@@ -243,45 +277,55 @@ class RegisterOrganization(BaseModel):
     admin_email: EmailStr
     admin_password: str
 
+
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+
 class InviteEntry(BaseModel):
     email: EmailStr
     name: Optional[str] = None
-    role: str = "employe"
+    role: str = "employe"  # employe | superviseur
+
 
 class InviteRequest(BaseModel):
     invites: List[InviteEntry]
+
 
 class AcceptInvite(BaseModel):
     name: str
     password: str
 
+
 class FeedbackCreate(BaseModel):
     message: str
     rating: int = 5
 
+
 class SubscribeRequest(BaseModel):
-    plan: str
-    payment_method: str
+    plan: str  # decouverte | business_pro | entreprise
+    payment_method: str  # carte | mobile_money | virement | paypal
+
 
 class FounderLogin(BaseModel):
     key: str
 
 
+# helpers de sérialisation ----------------------------------------------
 def serialize_user(u: UserDB) -> dict:
     return {
         "id": u.id, "name": u.name, "email": u.email, "role": u.role,
         "organization_id": u.organization_id, "is_active": u.is_active,
     }
 
+
 def serialize_org(o: OrganizationDB) -> dict:
     return {
         "id": o.id, "name": o.name, "sector": o.sector, "plan": o.plan,
         "owner_email": o.owner_email, "created_at": o.created_at.isoformat() if o.created_at else None,
     }
+
 
 def get_deliverables(t: TaskDB) -> List[dict]:
     try:
@@ -290,11 +334,13 @@ def get_deliverables(t: TaskDB) -> List[dict]:
     except (ValueError, TypeError):
         return []
 
+
 def compute_progress(deliverables: List[dict]) -> float:
     if not deliverables:
         return 0.0
     done = sum(1 for d in deliverables if d.get("done"))
     return round(done / len(deliverables) * 100, 1)
+
 
 def serialize_task(t: TaskDB) -> dict:
     deliverables = get_deliverables(t)
@@ -306,10 +352,13 @@ def serialize_task(t: TaskDB) -> dict:
         "due_date": t.due_date.isoformat() if t.due_date else None,
         "new_due_date": t.new_due_date.isoformat() if t.new_due_date else None,
         "assignee_name": t.assignee_name, "assignee_email": t.assignee_email,
-        "validation_status": t.validation_status, 
-        "supervisor_comment": t.supervisor_comment,
-        "delay_reason": t.delay_reason,
-        "validated_by": t.validated_by,
+        "validation_status": t.validation_status, "delay_reason": t.delay_reason,
+        "supervisor_comment": t.supervisor_comment, "validated_by": t.validated_by,
+        "created_by_name": t.created_by_name, "created_by_email": t.created_by_email,
+        "created_by_role": t.created_by_role,
+        "needs_attention": bool(t.needs_attention),
+        "last_comment": t.last_comment,
+        "last_comment_at": t.last_comment_at.isoformat() if t.last_comment_at else None,
         "created_at": t.created_at.isoformat() if t.created_at else None,
     }
 
@@ -320,6 +369,7 @@ def serialize_task(t: TaskDB) -> dict:
 @app.get("/")
 def read_root():
     return {"status": "online", "app": "OrbitFlow API", "docs": "/docs"}
+
 
 @app.get("/health")
 def health_check():
@@ -401,7 +451,7 @@ def invite_members(payload: InviteRequest,
 
 @app.get("/auth/invite/{token}")
 def get_invite(token: str, db: Session = Depends(get_db)):
-    user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()
+    user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()  # noqa: E712
     if not user:
         raise HTTPException(status_code=404, detail="Invitation introuvable ou déjà utilisée.")
     org = db.query(OrganizationDB).filter(OrganizationDB.id == user.organization_id).first()
@@ -410,7 +460,7 @@ def get_invite(token: str, db: Session = Depends(get_db)):
 
 @app.post("/auth/invite/{token}/accept")
 def accept_invite(token: str, payload: AcceptInvite, db: Session = Depends(get_db)):
-    user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()
+    user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()  # noqa: E712
     if not user:
         raise HTTPException(status_code=404, detail="Invitation introuvable ou déjà utilisée.")
     user.name = payload.name or user.name
@@ -434,7 +484,7 @@ def list_team(current_user: UserDB = Depends(get_current_user), db: Session = De
 
 
 # =========================================================================
-# 7. DEPARTEMENTS & TACHES
+# 7. DEPARTEMENTS & TACHES (multi-tenant, protégés)
 # =========================================================================
 @app.post("/departments/")
 def create_department(dept: DepartmentCreate, current_user: UserDB = Depends(get_current_user),
@@ -451,20 +501,31 @@ def read_departments(current_user: UserDB = Depends(get_current_user), db: Sessi
     return db.query(DepartmentDB).filter(DepartmentDB.organization_id == current_user.organization_id).all()
 
 
+def _apply_progress_side_effects(task: TaskDB, deliverables: List[dict]):
+    """Archive automatiquement dès 100%, ou ré-ouvre si un livrable est décoché après coup."""
+    progress = compute_progress(deliverables)
+    if progress >= 100 and task.validation_status == "en_cours":
+        task.validation_status = "archive"
+        task.validated_by = "Archivage automatique (100% des livrables)"
+    elif progress < 100 and task.validation_status == "archive":
+        task.validation_status = "en_cours"
+        task.validated_by = None
+
+
 @app.post("/tasks/")
 def create_task(task: TaskCreate, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
-    deliverables = [{"id": uuid.uuid4().hex[:8], "text": txt.strip(), "done": False}
-                     for txt in task.deliverables if txt and txt.strip()]
-    
-    # Si la tâche est créée par un employé, elle nécessite une validation de cadrage en amont.
-    initial_status = "en_cours" if current_user.role in ("super_admin", "superviseur") else "en_attente_cadrage"
-
+    deliverables = [{"id": uuid.uuid4().hex[:8], "text": d.text.strip(), "done": d.done, "critical": d.critical}
+                     for d in task.deliverables if d.text and d.text.strip()]
+    # Une tâche proposée par un employé doit d'abord recevoir l'orientation du superviseur avant
+    # que le travail ne démarre. Une tâche créée par un superviseur/super-admin est déjà validée.
+    initial_status = "en_cours" if current_user.role in ("super_admin", "superviseur") else "en_attente"
     db_task = TaskDB(
         title=task.title, department_id=task.department_id,
         organization_id=current_user.organization_id,
         deliverables_json=json.dumps(deliverables),
-        validation_status=initial_status,
         due_date=task.due_date, assignee_name=task.assignee_name, assignee_email=task.assignee_email,
+        validation_status=initial_status,
+        created_by_name=current_user.name, created_by_email=current_user.email, created_by_role=current_user.role,
     )
     db.add(db_task)
     db.commit()
@@ -492,17 +553,56 @@ def update_task(task_id: int, payload: TaskUpdate, current_user: UserDB = Depend
     task = _get_org_task(task_id, current_user, db)
     data = payload.dict(exclude_unset=True)
     deliverables_payload = data.pop("deliverables", None)
+    last_comment_payload = data.pop("last_comment", None)
+
+    reschedule_requested = "due_date" in data and data["due_date"] != task.due_date
+
     for field, value in data.items():
         setattr(task, field, value)
+
     if deliverables_payload is not None:
-        clean = [{"id": d.get("id") or uuid.uuid4().hex[:8], "text": d.get("text", "").strip(), "done": bool(d.get("done"))}
-                  for d in deliverables_payload if d.get("text", "").strip()]
+        clean = [{"id": d.get("id") or uuid.uuid4().hex[:8], "text": d.get("text", "").strip(),
+                  "done": bool(d.get("done")), "critical": bool(d.get("critical"))}
+                 for d in deliverables_payload if d.get("text", "").strip()]
         task.deliverables_json = json.dumps(clean)
-        progress = compute_progress(clean)
-        if progress >= 100 and task.validation_status == "en_cours":
-            task.validation_status = "en_attente"
-        elif progress < 100 and task.validation_status in ("en_attente",):
-            task.validation_status = "en_cours"
+        _apply_progress_side_effects(task, clean)
+
+    if last_comment_payload:
+        task.last_comment = last_comment_payload
+        task.last_comment_at = datetime.utcnow()
+        task.needs_attention = False  # un commentaire déposé "traite" l'alerte d'échéance proche
+
+    if reschedule_requested:
+        task.needs_attention = False  # reprogrammer une tâche lève aussi l'alerte
+
+    # Si l'orientation avait été rejetée puis que le porteur retouche la tâche, on la repasse
+    # en attente d'un nouvel avis du superviseur.
+    if task.validation_status == "rejete" and (deliverables_payload is not None or "due_date" in data or "title" in data):
+        task.validation_status = "en_attente"
+        task.supervisor_comment = None
+
+    db.commit()
+    db.refresh(task)
+    return serialize_task(task)
+
+
+@app.patch("/tasks/{task_id}/deliverables/{deliverable_id}")
+def toggle_deliverable(task_id: int, deliverable_id: str, payload: DeliverableToggle,
+                        current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    task = _get_org_task(task_id, current_user, db)
+    if task.validation_status in ("en_attente", "rejete"):
+        raise HTTPException(status_code=403, detail="Cette tâche attend encore l'orientation du superviseur avant de pouvoir démarrer.")
+    items = get_deliverables(task)
+    found = False
+    for d in items:
+        if d.get("id") == deliverable_id:
+            d["done"] = payload.done
+            found = True
+            break
+    if not found:
+        raise HTTPException(status_code=404, detail="Livrable introuvable.")
+    task.deliverables_json = json.dumps(items)
+    _apply_progress_side_effects(task, items)
     db.commit()
     db.refresh(task)
     return serialize_task(task)
@@ -517,29 +617,28 @@ def delete_task(task_id: int, current_user: UserDB = Depends(require_roles("supe
     return {"status": "deleted", "id": task_id}
 
 
-@app.patch("/tasks/{task_id}/validate")
-def validate_task(task_id: int, payload: TaskValidate,
-                   current_user: UserDB = Depends(require_roles("super_admin", "superviseur")),
-                   db: Session = Depends(get_db)):
+@app.patch("/tasks/{task_id}/orientation")
+def decide_orientation(task_id: int, payload: OrientationDecision,
+                        current_user: UserDB = Depends(require_roles("super_admin", "superviseur")),
+                        db: Session = Depends(get_db)):
+    """Le superviseur approuve ou rejette la PLANIFICATION proposée, avant tout démarrage des travaux."""
     task = _get_org_task(task_id, current_user, db)
     if payload.decision not in ("valide", "rejete"):
         raise HTTPException(status_code=400, detail="Décision invalide.")
-    
-    # Si validé en amont lors du cadrage, passe en_cours d'exécution
-    if payload.decision == "valide" and task.validation_status == "en_attente_cadrage":
-        task.validation_status = "en_cours"
-    else:
-        task.validation_status = payload.decision
-        
+    if payload.decision == "rejete" and not (payload.comment and payload.comment.strip()):
+        raise HTTPException(status_code=400, detail="Un commentaire est requis pour expliquer le rejet et donner une orientation.")
+    task.validation_status = "en_cours" if payload.decision == "valide" else "rejete"
+    task.supervisor_comment = payload.comment.strip() if payload.comment else None
     task.validated_by = current_user.name
-    task.supervisor_comment = payload.comment
     db.commit()
     db.refresh(task)
     return serialize_task(task)
 
 
+
+
 # =========================================================================
-# 8. FEEDBACK & FACTURATION
+# 8. FEEDBACK / AVIS UTILISATEURS
 # =========================================================================
 @app.post("/feedback/")
 def create_feedback(payload: FeedbackCreate, current_user: UserDB = Depends(get_current_user),
@@ -555,6 +654,9 @@ def create_feedback(payload: FeedbackCreate, current_user: UserDB = Depends(get_
     return {"id": fb.id, "message": "Merci pour ton retour !"}
 
 
+# =========================================================================
+# 9. ABONNEMENTS / FACTURATION
+# =========================================================================
 @app.post("/billing/subscribe")
 def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_roles("super_admin")),
               db: Session = Depends(get_db)):
@@ -567,11 +669,14 @@ def subscribe(payload: SubscribeRequest, current_user: UserDB = Depends(require_
         payment_method=payload.payment_method, status="active",
     ))
     db.commit()
+    # NOTE : ceci enregistre l'abonnement en base mais n'encaisse aucun paiement réel.
+    # Pour un encaissement réel, connecte ici Stripe (carte), un agrégateur Mobile Money
+    # (MTN MoMo / Orange Money API), ou une confirmation manuelle de virement bancaire.
     return {"status": "ok", "organization": serialize_org(org)}
 
 
 # =========================================================================
-# 9. CONSOLE FONDATEUR (ADMIN)
+# 10. CONSOLE FONDATEUR (toi) — vision globale, toutes entreprises confondues
 # =========================================================================
 @app.post("/admin/login")
 def admin_login(payload: FounderLogin):
@@ -584,7 +689,7 @@ def admin_login(payload: FounderLogin):
 @app.get("/admin/stats")
 def admin_stats(_: bool = Depends(get_current_founder), db: Session = Depends(get_db)):
     total_orgs = db.query(OrganizationDB).count()
-    total_users = db.query(UserDB).filter(UserDB.is_active == True).count()
+    total_users = db.query(UserDB).filter(UserDB.is_active == True).count()  # noqa: E712
     total_departments = db.query(DepartmentDB).count()
     total_tasks = db.query(TaskDB).count()
 
@@ -637,7 +742,7 @@ def admin_organizations(_: bool = Depends(get_current_founder), db: Session = De
     orgs = db.query(OrganizationDB).all()
     result = []
     for o in orgs:
-        users_count = db.query(UserDB).filter(UserDB.organization_id == o.id, UserDB.is_active == True).count()
+        users_count = db.query(UserDB).filter(UserDB.organization_id == o.id, UserDB.is_active == True).count()  # noqa: E712
         tasks_count = db.query(TaskDB).filter(TaskDB.organization_id == o.id).count()
         result.append({**serialize_org(o), "users_count": users_count, "tasks_count": tasks_count})
     return result
