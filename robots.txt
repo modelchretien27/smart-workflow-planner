@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://smart-workflow-planner.vercel.app/sitemap.xml
