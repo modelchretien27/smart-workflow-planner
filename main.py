@@ -19,21 +19,75 @@ from jose import jwt, JWTError
 # =========================================================================
 # 1. CONFIGURATION
 # =========================================================================
-DATABASE_URL = os.getenv("DATABASE_URL")
+# En production, les secrets et la base de données DOIVENT provenir des
+# variables d'environnement de Render. Aucun secret de secours n'est
+# conservé dans le code source.
+ENVIRONMENT = os.getenv("ENVIRONMENT", "production").strip().lower()
+
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 if not DATABASE_URL:
-    DATABASE_URL = "sqlite:///./test.db"
+    if ENVIRONMENT == "development":
+        DATABASE_URL = "sqlite:///./test.db"
+    else:
+        raise RuntimeError(
+            "DATABASE_URL est obligatoire en production. "
+            "Configurez-la dans les variables d'environnement du backend."
+        )
+
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-engine = create_engine(DATABASE_URL)
+# SQLite est réservé au développement local.
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "orbitflow-dev-secret-change-me-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
+FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "").strip()
+
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY est obligatoire. Configurez une clé aléatoire forte "
+        "dans les variables d'environnement du backend."
+    )
+
+if not FOUNDER_ADMIN_KEY:
+    raise RuntimeError(
+        "FOUNDER_ADMIN_KEY est obligatoire. Configurez une clé secrète forte "
+        "dans les variables d'environnement du backend."
+    )
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 jours
 
-FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "changeme-founder-key")
+# Origines autorisées à appeler l'API depuis un navigateur.
+# Vous pouvez ajouter d'autres domaines en les séparant par des virgules
+# dans ALLOWED_ORIGINS sur Render.
+def parse_allowed_origins() -> List[str]:
+    configured = os.getenv("ALLOWED_ORIGINS", "").strip()
+    defaults = [
+        "https://smart-workflow-planner.vercel.app",
+    ]
+
+    if ENVIRONMENT == "development":
+        defaults.extend([
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:5173",
+        ])
+
+    configured_origins = [
+        origin.strip().rstrip("/")
+        for origin in configured.split(",")
+        if origin.strip()
+    ]
+
+    # Conserve l'ordre et supprime les doublons.
+    return list(dict.fromkeys(defaults + configured_origins))
+
+ALLOWED_ORIGINS = parse_allowed_origins()
 
 PLAN_PRICES = {"decouverte": 0.0, "business_pro": 29.0, "entreprise": 99.0}
 ANNUAL_DISCOUNT_MONTHS = {"decouverte": 0, "business_pro": 3, "entreprise": 4}
@@ -190,10 +244,11 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
+    max_age=600,
 )
 
 
