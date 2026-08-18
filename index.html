@@ -5,55 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OrbitFlow — La Plateforme de Planification Intelligente</title>
 <meta name="description" content="OrbitFlow — planification par domaine, validation d'orientation et suivi d'échéances en temps réel pour les entreprises.">
-<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
-<link rel="canonical" href="https://smart-workflow-planner.vercel.app/">
-
-<!-- Open Graph : aperçu lors du partage sur LinkedIn, Facebook, WhatsApp, etc. -->
-<meta property="og:type" content="website">
-<meta property="og:locale" content="fr_FR">
-<meta property="og:site_name" content="OrbitFlow">
-<meta property="og:title" content="OrbitFlow | Logiciel de planification et de suivi des tâches">
-<meta property="og:description" content="OrbitFlow aide les équipes et les entreprises à planifier leurs activités, suivre les tâches, les échéances et les livrables, et piloter leur performance.">
-<meta property="og:url" content="https://smart-workflow-planner.vercel.app/">
-
-<!-- Twitter / X -->
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="OrbitFlow | Logiciel de planification et de suivi des tâches">
-<meta name="twitter:description" content="Planifiez les activités, suivez les tâches, les échéances et les livrables avec OrbitFlow.">
-
-<!-- Données structurées pour les moteurs de recherche -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "SoftwareApplication",
-  "name": "OrbitFlow",
-  "applicationCategory": "BusinessApplication",
-  "operatingSystem": "Web",
-  "url": "https://smart-workflow-planner.vercel.app/",
-  "description": "Plateforme B2B de planification, de suivi des tâches, des échéances et des livrables pour les équipes et les entreprises.",
-  "inLanguage": "fr",
-  "offers": [
-    {
-      "@type": "Offer",
-      "name": "Découverte",
-      "price": "0",
-      "priceCurrency": "EUR"
-    },
-    {
-      "@type": "Offer",
-      "name": "Business Pro",
-      "price": "29",
-      "priceCurrency": "EUR"
-    },
-    {
-      "@type": "Offer",
-      "name": "Entreprise",
-      "price": "99",
-      "priceCurrency": "EUR"
-    }
-  ]
-}
-</script>
 <!-- Personnalisation de l'affichage navigateur (couleur de la barre + favicon), à la LinkedIn -->
 <meta name="theme-color" content="#1f4fc4">
 <meta name="msapplication-navbutton-color" content="#1f4fc4">
@@ -1567,12 +1518,20 @@ function seedDemoData(){
 
 async function loadDepartments(){
   try{
-    if(demoMode) throw new Error('demo');
+    // Le mode démo ne doit être utilisé que sans authentification.
+    // Après connexion, une erreur API ne doit jamais transformer
+    // l'application en faux mode démo ni produire des données locales.
+    if(demoMode && !authToken) throw new Error('demo');
     const depts = await apiGet('/departments/');
     departmentsMap = {};
     depts.forEach(d=>{ departmentsMap[d.id] = d.name; });
+    if(authToken) demoMode = false;
   }catch(e){
-    if(Object.keys(departmentsMap).length===0) seedDemoData();
+    if(!authToken){
+      if(Object.keys(departmentsMap).length===0) seedDemoData();
+    }else{
+      console.error("OrbitFlow: impossible de charger les domaines depuis l'API.", e);
+    }
   }
   populateDeptSelect(document.getElementById('taskDept'));
   populateDeptSelect(document.getElementById('editTaskDept'));
@@ -1662,11 +1621,19 @@ async function resolveDepartmentId(select, newInput){
 
 async function loadTasks(){
   try{
-    if(demoMode) throw new Error('demo');
+    // Un utilisateur authentifié doit toujours travailler avec les données
+    // du backend. Le mode démo ne doit jamais reprendre la main à cause
+    // d'une course entre l'initialisation et la connexion.
+    if(demoMode && !authToken) throw new Error('demo');
     const tasks = await apiGet('/tasks/');
     tasksCache = tasks;
+    if(authToken) demoMode = false;
   }catch(e){
-    if(tasksCache.length===0) seedDemoData();
+    if(!authToken){
+      if(tasksCache.length===0) seedDemoData();
+    }else{
+      console.error("OrbitFlow: impossible de charger les tâches depuis l'API.", e);
+    }
   }
   tasksCache.forEach(t=>ensureFlags(t.id));
   renderDemoBanner();
@@ -2390,21 +2357,28 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
 
   let newTask;
   try{
-    if(!demoMode){
+    if(authToken && !demoMode){
+      // En production, une tâche n'est considérée comme créée que si
+      // l'API confirme son enregistrement. Aucun faux enregistrement local.
       newTask = await apiPost('/tasks/', {
         title, department_id, deliverables,
         due_date: dueDate || null, assignee_name: assigneeName || null, assignee_email: assigneeEmail || null,
       });
-    } else { throw new Error('demo'); }
+    } else {
+      // Le repli local est réservé au véritable mode démo, sans compte connecté.
+      const items = deliverables.map(d=>({id:'tmp'+Math.random().toString(36).slice(2), text:d.text, critical:d.critical, done:false}));
+      newTask = {
+        id: Date.now(), title, department_id, deliverables: items, progress: 0,
+        due_date: dueDate || null, new_due_date: null, assignee_name: assigneeName, assignee_email: assigneeEmail,
+        validation_status: isSupervisorLike ? 'en_cours' : 'en_attente', delay_reason: '', needs_attention: false,
+        created_by_name: currentUser.name, created_by_email: currentUser.email, created_by_role: currentUser.role,
+        created_at: new Date().toISOString(),
+      };
+    }
   }catch(err){
-    const items = deliverables.map(d=>({id:'tmp'+Math.random().toString(36).slice(2), text:d.text, critical:d.critical, done:false}));
-    newTask = {
-      id: Date.now(), title, department_id, deliverables: items, progress: 0,
-      due_date: dueDate || null, new_due_date: null, assignee_name: assigneeName, assignee_email: assigneeEmail,
-      validation_status: isSupervisorLike ? 'en_cours' : 'en_attente', delay_reason: '', needs_attention: false,
-      created_by_name: currentUser.name, created_by_email: currentUser.email, created_by_role: currentUser.role,
-      created_at: new Date().toISOString(),
-    };
+    console.error("OrbitFlow: création de tâche refusée par l'API.", err);
+    alert("La tâche n'a pas été enregistrée. Le serveur a refusé ou n'a pas pu traiter la demande. Aucune donnée locale fictive n'a été créée.");
+    return;
   }
   if(newTask && !tasksCache.find(t=>t.id===newTask.id)) tasksCache.push(newTask);
   ensureFlags(newTask.id);
@@ -2612,7 +2586,10 @@ function importData(event){
 /* ---------------- INIT ---------------- */
 document.addEventListener('DOMContentLoaded', async ()=>{
   checkInviteInUrl();
-  demoMode = true; // affichage de démonstration en arrière-plan tant que personne n'est connecté
+  // La démonstration est disponible uniquement avant authentification.
+  // Les fonctions de chargement vérifient également authToken pour éviter
+  // toute course entre l'initialisation et la connexion.
+  demoMode = !authToken;
   await loadDepartments();
   await loadTasks();
   setInterval(()=>computeAllStatuses(false), 60000); // vérifie les échéances chaque minute pendant que la page est ouverte
@@ -2620,3 +2597,4 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 </script>
 </body>
 </html>
+
