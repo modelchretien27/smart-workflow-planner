@@ -1,6 +1,10 @@
 import os
 import uuid
 import json
+import hashlib
+import secrets
+import smtplib
+from email.message import EmailMessage
 from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
 
@@ -11,6 +15,7 @@ from sqlalchemy import (
     create_engine, Column, Integer, String, Float, ForeignKey, Boolean,
     DateTime, Date, Text, func
 )
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from passlib.context import CryptContext
@@ -19,75 +24,41 @@ from jose import jwt, JWTError
 # =========================================================================
 # 1. CONFIGURATION
 # =========================================================================
-# En production, les secrets et la base de données DOIVENT provenir des
-# variables d'environnement de Render. Aucun secret de secours n'est
-# conservé dans le code source.
 ENVIRONMENT = os.getenv("ENVIRONMENT", "production").strip().lower()
-
-DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     if ENVIRONMENT == "development":
         DATABASE_URL = "sqlite:///./test.db"
     else:
-        raise RuntimeError(
-            "DATABASE_URL est obligatoire en production. "
-            "Configurez-la dans les variables d'environnement du backend."
-        )
-
+        raise RuntimeError("DATABASE_URL est obligatoire en production.")
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# SQLite est réservé au développement local.
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
+SECRET_KEY = os.getenv("SECRET_KEY")
+FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY")
+if not SECRET_KEY or len(SECRET_KEY) < 32:
+    raise RuntimeError("SECRET_KEY doit être configurée et contenir au moins 32 caractères.")
+if not FOUNDER_ADMIN_KEY or len(FOUNDER_ADMIN_KEY) < 16:
+    raise RuntimeError("FOUNDER_ADMIN_KEY doit être configurée.")
+
+ALLOWED_ORIGINS = [o.strip().rstrip("/") for o in os.getenv(
+    "ALLOWED_ORIGINS", "https://smart-workflow-planner.vercel.app"
+).split(",") if o.strip()]
+
+APP_BASE_URL = os.getenv("APP_BASE_URL", "https://smart-workflow-planner.vercel.app").rstrip("/")
+RESET_TOKEN_EXPIRE_MINUTES = 30
+SMTP_HOST = os.getenv("SMTP_HOST")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")
+SMTP_FROM = os.getenv("SMTP_FROM") or SMTP_USERNAME
+
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-SECRET_KEY = os.getenv("SECRET_KEY", "").strip()
-FOUNDER_ADMIN_KEY = os.getenv("FOUNDER_ADMIN_KEY", "").strip()
-
-if not SECRET_KEY:
-    raise RuntimeError(
-        "SECRET_KEY est obligatoire. Configurez une clé aléatoire forte "
-        "dans les variables d'environnement du backend."
-    )
-
-if not FOUNDER_ADMIN_KEY:
-    raise RuntimeError(
-        "FOUNDER_ADMIN_KEY est obligatoire. Configurez une clé secrète forte "
-        "dans les variables d'environnement du backend."
-    )
-
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 jours
-
-# Origines autorisées à appeler l'API depuis un navigateur.
-# Vous pouvez ajouter d'autres domaines en les séparant par des virgules
-# dans ALLOWED_ORIGINS sur Render.
-def parse_allowed_origins() -> List[str]:
-    configured = os.getenv("ALLOWED_ORIGINS", "").strip()
-    defaults = [
-        "https://smart-workflow-planner.vercel.app",
-    ]
-
-    if ENVIRONMENT == "development":
-        defaults.extend([
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "http://127.0.0.1:3000",
-            "http://127.0.0.1:5173",
-        ])
-
-    configured_origins = [
-        origin.strip().rstrip("/")
-        for origin in configured.split(",")
-        if origin.strip()
-    ]
-
-    # Conserve l'ordre et supprime les doublons.
-    return list(dict.fromkeys(defaults + configured_origins))
-
-ALLOWED_ORIGINS = parse_allowed_origins()
 
 PLAN_PRICES = {"decouverte": 0.0, "business_pro": 29.0, "entreprise": 99.0}
 ANNUAL_DISCOUNT_MONTHS = {"decouverte": 0, "business_pro": 3, "entreprise": 4}
@@ -247,8 +218,7 @@ app.add_middleware(
     allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept"],
-    max_age=600,
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -346,6 +316,20 @@ class RegisterOrganization(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class PasswordChangeRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str
+    new_password: str
 
 
 class InviteEntry(BaseModel):
@@ -454,11 +438,43 @@ def health_check():
     return {"status": "healthy"}
 
 
+def validate_new_password(password: str):
+    if len(password) < 8:
+        raise HTTPException(status_code=400, detail="Le mot de passe doit contenir au moins 8 caractères.")
+    if password.isspace():
+        raise HTTPException(status_code=400, detail="Le mot de passe ne peut pas être composé uniquement d'espaces.")
+
+
+def hash_reset_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def send_password_reset_email(to_email: str, to_name: str, reset_url: str):
+    if not (SMTP_HOST and SMTP_USERNAME and SMTP_PASSWORD and SMTP_FROM):
+        raise RuntimeError("Le service SMTP de récupération de mot de passe n'est pas configuré.")
+    msg = EmailMessage()
+    msg["Subject"] = "OrbitFlow — Réinitialisation de votre mot de passe"
+    msg["From"] = SMTP_FROM
+    msg["To"] = to_email
+    msg.set_content(
+        f"Bonjour {to_name or ''},\n\n"
+        "Une demande de réinitialisation du mot de passe de votre compte OrbitFlow vient d'être effectuée.\n\n"
+        f"Utilisez ce lien dans les 30 minutes : {reset_url}\n\n"
+        "Si vous n'êtes pas à l'origine de cette demande, ignorez simplement ce message.\n\n"
+        "L'équipe OrbitFlow"
+    )
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as server:
+        server.starttls()
+        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        server.send_message(msg)
+
+
 # =========================================================================
 # 6. AUTHENTIFICATION & UTILISATEURS
 # =========================================================================
 @app.post("/auth/register")
 def register_organization(payload: RegisterOrganization, db: Session = Depends(get_db)):
+    validate_new_password(payload.admin_password)
     if db.query(UserDB).filter(UserDB.email == payload.admin_email).first():
         raise HTTPException(status_code=400, detail="Cette adresse e-mail est déjà utilisée.")
 
@@ -503,6 +519,81 @@ def read_me(current_user: UserDB = Depends(get_current_user), db: Session = Depe
     return {"user": serialize_user(current_user), "organization": serialize_org(org)}
 
 
+@app.post("/auth/change-password")
+def change_password(payload: PasswordChangeRequest, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user.password_hash or not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Le mot de passe actuel est incorrect.")
+    validate_new_password(payload.new_password)
+    if verify_password(payload.new_password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Le nouveau mot de passe doit être différent de l'ancien.")
+    current_user.password_hash = hash_password(payload.new_password)
+    db.query(PasswordResetTokenDB).filter(PasswordResetTokenDB.user_id == current_user.id, PasswordResetTokenDB.used_at.is_(None)).update({"used_at": datetime.utcnow()})
+    db.commit()
+    return {"status": "password_changed", "message": "Mot de passe modifié avec succès."}
+
+
+@app.post("/auth/forgot-password")
+def forgot_password(payload: PasswordResetRequest, db: Session = Depends(get_db)):
+    # Réponse volontairement identique que l'adresse existe ou non.
+    generic = {"status": "ok", "message": "Si cette adresse correspond à un compte actif, un e-mail de réinitialisation vient d'être envoyé."}
+    user = db.query(UserDB).filter(UserDB.email == payload.email, UserDB.is_active == True).first()
+    if not user:
+        return generic
+
+    # Invalider les demandes précédentes de cet utilisateur.
+    db.query(PasswordResetTokenDB).filter(PasswordResetTokenDB.user_id == user.id, PasswordResetTokenDB.used_at.is_(None)).update({"used_at": datetime.utcnow()})
+    if not (SMTP_HOST and SMTP_USERNAME and SMTP_PASSWORD and SMTP_FROM):
+        print("OrbitFlow: SMTP non configuré — récupération de mot de passe indisponible.")
+        raise HTTPException(status_code=503, detail="Le service de récupération du mot de passe n'est pas encore configuré.")
+
+    raw_token = secrets.token_urlsafe(32)
+    reset = PasswordResetTokenDB(
+        user_id=user.id, token_hash=hash_reset_token(raw_token),
+        expires_at=datetime.utcnow() + timedelta(minutes=RESET_TOKEN_EXPIRE_MINUTES)
+    )
+    db.add(reset)
+    db.commit()
+    reset_url = f"{APP_BASE_URL}/?reset_token={raw_token}"
+    try:
+        send_password_reset_email(user.email, user.name, reset_url)
+    except Exception:
+        db.delete(reset)
+        db.commit()
+        # Ne pas révéler si l'adresse existe ; les logs Render permettent le diagnostic.
+        print("OrbitFlow: impossible d'envoyer l'e-mail de réinitialisation.")
+    return generic
+
+
+@app.post("/auth/reset-password")
+def reset_password(payload: PasswordResetConfirm, db: Session = Depends(get_db)):
+    validate_new_password(payload.new_password)
+    token_hash = hash_reset_token(payload.token)
+    reset = db.query(PasswordResetTokenDB).filter(
+        PasswordResetTokenDB.token_hash == token_hash,
+        PasswordResetTokenDB.used_at.is_(None),
+        PasswordResetTokenDB.expires_at > datetime.utcnow()
+    ).first()
+    if not reset:
+        raise HTTPException(status_code=400, detail="Lien de réinitialisation invalide ou expiré.")
+    user = db.query(UserDB).filter(UserDB.id == reset.user_id, UserDB.is_active == True).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Compte introuvable ou désactivé.")
+    if user.password_hash and verify_password(payload.new_password, user.password_hash):
+        raise HTTPException(status_code=400, detail="Le nouveau mot de passe doit être différent de l'ancien.")
+    user.password_hash = hash_password(payload.new_password)
+    reset.used_at = datetime.utcnow()
+    # Invalider toutes les autres demandes actives de ce compte.
+    db.query(PasswordResetTokenDB).filter(
+        PasswordResetTokenDB.user_id == user.id,
+        PasswordResetTokenDB.id != reset.id,
+        PasswordResetTokenDB.used_at.is_(None)
+    ).update({"used_at": datetime.utcnow()})
+    db.commit()
+    token_jwt = create_access_token({"sub": str(user.id)}, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    org = db.query(OrganizationDB).filter(OrganizationDB.id == user.organization_id).first()
+    return {"access_token": token_jwt, "user": serialize_user(user), "organization": serialize_org(org)}
+
+
 @app.post("/auth/invite")
 def invite_members(payload: InviteRequest,
                     current_user: UserDB = Depends(require_roles("super_admin", "superviseur")),
@@ -538,6 +629,7 @@ def get_invite(token: str, db: Session = Depends(get_db)):
 
 @app.post("/auth/invite/{token}/accept")
 def accept_invite(token: str, payload: AcceptInvite, db: Session = Depends(get_db)):
+    validate_new_password(payload.password)
     user = db.query(UserDB).filter(UserDB.invite_token == token, UserDB.is_active == False).first()
     if not user:
         raise HTTPException(status_code=404, detail="Invitation introuvable ou déjà utilisée.")
@@ -626,20 +718,37 @@ def _apply_progress_side_effects(task: TaskDB, deliverables: List[dict]):
 
 @app.post("/tasks/")
 def create_task(task: TaskCreate, current_user: UserDB = Depends(get_current_user), db: Session = Depends(get_db)):
+    title = task.title.strip()
+    if not title:
+        raise HTTPException(status_code=400, detail="Le titre de la tâche est obligatoire.")
+    department = db.query(DepartmentDB).filter(
+        DepartmentDB.id == task.department_id,
+        DepartmentDB.organization_id == current_user.organization_id
+    ).first()
+    if not department:
+        raise HTTPException(status_code=400, detail="Le domaine sélectionné n'appartient pas à votre organisation.")
     deliverables = [{"id": uuid.uuid4().hex[:8], "text": d.text.strip(), "done": d.done, "critical": d.critical}
                      for d in task.deliverables if d.text and d.text.strip()]
+    if not deliverables:
+        raise HTTPException(status_code=400, detail="Ajoutez au moins un livrable.")
+    if not any(d["critical"] for d in deliverables):
+        raise HTTPException(status_code=400, detail="Au moins un livrable doit être marqué comme étape critique.")
     initial_status = "en_cours" if current_user.role in ("super_admin", "superviseur") else "en_attente"
     db_task = TaskDB(
-        title=task.title, department_id=task.department_id,
+        title=title, department_id=department.id,
         organization_id=current_user.organization_id,
         deliverables_json=json.dumps(deliverables),
         due_date=task.due_date, assignee_name=task.assignee_name, assignee_email=task.assignee_email,
         validation_status=initial_status,
         created_by_name=current_user.name, created_by_email=current_user.email, created_by_role=current_user.role,
     )
-    db.add(db_task)
-    db.commit()
-    db.refresh(db_task)
+    try:
+        db.add(db_task)
+        db.commit()
+        db.refresh(db_task)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Impossible d'enregistrer la tâche. Vérifiez le domaine sélectionné et les données saisies.")
     return serialize_task(db_task)
 
 
