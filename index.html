@@ -396,7 +396,8 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
         <div class="form-group"><label>E-mail professionnel</label><input type="email" id="loginEmail" placeholder="ex: toi@entreprise.com" required></div>
         <div class="form-group"><label>Mot de passe</label><input type="password" id="loginPassword" required></div>
         <button type="submit" class="btn-primary">Se connecter</button>
-        <p id="loginError" style="color:var(--s-red);font-size:.8rem;display:none;margin-top:10px;">E-mail ou mot de passe incorrect.</p>
+        <p style="text-align:right;margin:10px 0 0;font-size:.8rem;"><a href="#" onclick="openForgotPassword();return false;" style="color:var(--accent);">Mot de passe oublié ?</a></p>
+        <p id="loginError" style="color:var(--s-red);font-size:.8rem;display:none;margin-top:10px;"></p>
       </form>
 
       <form id="registerForm" style="display:none;">
@@ -420,6 +421,36 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
         <a href="#" onclick="enterDemoMode();return false;" style="color:var(--text-muted);">Découvrir en mode démonstration, sans compte →</a>
       </p>
     </div>
+  </div>
+</div>
+
+<!-- ============ MODAL: MOT DE PASSE OUBLIE ============ -->
+<div id="forgotPasswordModal" class="modal">
+  <div class="modal-content">
+    <span class="close-modal" onclick="closeModal('forgotPasswordModal')">&times;</span>
+    <div class="mark" style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--violet));display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;margin-bottom:14px;"><i class="fa-solid fa-key"></i></div>
+    <h3 style="margin-top:0;">Mot de passe oublié ?</h3>
+    <p class="hint">Saisis l'adresse e-mail de ton compte. Si elle correspond à un compte actif, OrbitFlow enverra un lien de réinitialisation valable 30 minutes.</p>
+    <form id="forgotPasswordForm">
+      <div class="form-group"><label>E-mail</label><input type="email" id="forgotPasswordEmail" required></div>
+      <button type="submit" class="btn-primary">Envoyer le lien</button>
+      <p id="forgotPasswordMsg" style="font-size:.82rem;display:none;margin-top:10px;"></p>
+    </form>
+  </div>
+</div>
+
+<!-- ============ MODAL: REINITIALISATION DU MOT DE PASSE ============ -->
+<div id="resetPasswordModal" class="modal">
+  <div class="modal-content">
+    <div class="mark" style="width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--violet));display:flex;align-items:center;justify-content:center;color:#fff;font-size:1.1rem;margin-bottom:14px;"><i class="fa-solid fa-shield-halved"></i></div>
+    <h3 style="margin-top:0;">Créer un nouveau mot de passe</h3>
+    <p class="hint">Choisis un mot de passe d'au moins 8 caractères. Le lien reçu par e-mail n'est utilisable qu'une seule fois et expire après 30 minutes.</p>
+    <form id="resetPasswordForm">
+      <div class="form-group"><label>Nouveau mot de passe</label><input type="password" id="resetPasswordNew" minlength="8" required></div>
+      <div class="form-group"><label>Confirmer le mot de passe</label><input type="password" id="resetPasswordConfirm" minlength="8" required></div>
+      <button type="submit" class="btn-primary">Réinitialiser mon mot de passe</button>
+      <p id="resetPasswordMsg" style="font-size:.82rem;display:none;margin-top:10px;"></p>
+    </form>
   </div>
 </div>
 
@@ -613,6 +644,19 @@ footer{background:var(--primary);color:#8a95b3;padding:44px 24px 22px;margin-top
       brancher un job planifié côté backend qui appelle un endpoint de vérification quotidienne. La logique de calcul des statuts
       est déjà prête côté client pour ça — voir le commentaire "BACKEND REQUIS" dans le code source.
     </div>
+
+    <hr style="border:0;border-top:1px solid var(--border);margin:24px 0;">
+    <h3 style="margin-top:0;"><i class="fa-solid fa-lock" style="color:var(--accent);"></i> Sécurité du compte</h3>
+    <p class="hint">Tous les utilisateurs peuvent modifier leur propre mot de passe lorsqu'ils sont connectés.</p>
+    <form id="changePasswordForm">
+      <div class="two-col">
+        <div class="form-group"><label>Mot de passe actuel</label><input type="password" id="currentPassword" autocomplete="current-password" required></div>
+        <div class="form-group"><label>Nouveau mot de passe</label><input type="password" id="newPassword" minlength="8" autocomplete="new-password" required></div>
+      </div>
+      <div class="form-group"><label>Confirmer le nouveau mot de passe</label><input type="password" id="confirmNewPassword" minlength="8" autocomplete="new-password" required></div>
+      <button type="submit" class="btn-primary">Modifier mon mot de passe</button>
+      <p id="changePasswordMsg" style="font-size:.82rem;display:none;margin-top:10px;"></p>
+    </form>
   </div>
 </div>
 
@@ -1148,6 +1192,7 @@ function setAuthTab(mode){
 
 function applyLoggedInUser(user, org, token){
   authToken = token;
+  if(token){ localStorage.setItem('orbitflow_auth_token', token); }
   currentUser = user;
   currentOrg = org || currentOrg;
   document.getElementById('userNameChip').textContent = currentUser.name;
@@ -1222,7 +1267,9 @@ document.getElementById('orgForm').addEventListener('submit', async (e)=>{
 function handleUserChipClick(){
   if(!authToken){ openModal('onboardModal'); return; }
   if(confirm('Se déconnecter de OrbitFlow ?')){
-    authToken = null; currentUser = {id:null,name:'',email:'',role:'employe'};
+    authToken = null;
+    localStorage.removeItem('orbitflow_auth_token');
+    currentUser = {id:null,name:'',email:'',role:'employe'};
     location.reload();
   }
 }
@@ -1252,11 +1299,13 @@ document.getElementById('loginForm').addEventListener('submit', async (e)=>{
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({email, password})
     });
-    if(!res.ok) throw new Error('login failed');
-    const data = await res.json();
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.detail || 'Connexion impossible.');
     applyLoggedInUser(data.user, data.organization, data.access_token);
   }catch(err){
-    document.getElementById('loginError').style.display = 'block';
+    const el = document.getElementById('loginError');
+    el.textContent = err.message || 'Connexion impossible.';
+    el.style.display = 'block';
   }
 });
 
@@ -1467,19 +1516,24 @@ function computeAllStatuses(silent){
 function authHeaders(){
   return authToken ? {'Authorization': `Bearer ${authToken}`} : {};
 }
+async function apiErrorFromResponse(res){
+  let detail = '';
+  try{ const data = await res.json(); detail = data.detail || data.message || ''; }catch(e){}
+  return new Error(detail || `Erreur API (${res.status}).`);
+}
 async function apiGet(path){
   const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
-  if(!res.ok) throw new Error('API error');
+  if(!res.ok) throw await apiErrorFromResponse(res);
   return res.json();
 }
 async function apiPost(path, body){
   const res = await fetch(`${API_URL}${path}`, {method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()}, body:JSON.stringify(body)});
-  if(!res.ok) throw new Error('API error');
+  if(!res.ok) throw await apiErrorFromResponse(res);
   return res.json();
 }
 async function apiPatch(path, body){
   const res = await fetch(`${API_URL}${path}`, {method:'PATCH', headers:{'Content-Type':'application/json', ...authHeaders()}, body:JSON.stringify(body)});
-  if(!res.ok) throw new Error('API error');
+  if(!res.ok) throw await apiErrorFromResponse(res);
   return res.json();
 }
 
@@ -1605,18 +1659,23 @@ async function resolveDepartmentId(select, newInput){
   const existingId = Object.entries(departmentsMap).find(([,n]) => n.trim().toLowerCase() === name.toLowerCase())?.[0];
   if(existingId) return parseInt(existingId);
   try{
-    if(!demoMode){
+    if(authToken && !demoMode){
       const dept = await apiPost('/departments/', {name});
       departmentsMap[dept.id] = dept.name;
       await loadDepartments();
       return dept.id;
     }
-  }catch(e){ /* repli local ci-dessous */ }
-  const id = Date.now();
-  departmentsMap[id] = name;
-  populateDeptSelect(document.getElementById('taskDept'));
-  populateDeptSelect(document.getElementById('editTaskDept'));
-  return id;
+  }catch(e){
+    if(authToken){ throw e; }
+  }
+  if(!authToken || demoMode){
+    const id = Date.now();
+    departmentsMap[id] = name;
+    populateDeptSelect(document.getElementById('taskDept'));
+    populateDeptSelect(document.getElementById('editTaskDept'));
+    return id;
+  }
+  return null;
 }
 
 async function loadTasks(){
@@ -2347,7 +2406,13 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
     return;
   }
   const deptSelect = document.getElementById('taskDept');
-  const department_id = await resolveDepartmentId(deptSelect, document.getElementById('taskNewDeptInput'));
+  let department_id;
+  try{
+    department_id = await resolveDepartmentId(deptSelect, document.getElementById('taskNewDeptInput'));
+  }catch(err){
+    alert(`Impossible d'enregistrer le domaine : ${err.message}`);
+    return;
+  }
   if(!department_id){ alert('Choisis ou crée un domaine avant de planifier la tâche.'); return; }
   const dueDate = document.getElementById('taskDueDate').value;
   const assigneeName = document.getElementById('taskAssigneeName').value;
@@ -2583,18 +2648,115 @@ function importData(event){
   reader.readAsText(file);
 }
 
+/* ---------------- SECURITE DU COMPTE ---------------- */
+function openForgotPassword(){
+  document.getElementById('forgotPasswordEmail').value = document.getElementById('loginEmail').value.trim();
+  document.getElementById('forgotPasswordMsg').style.display = 'none';
+  openModal('forgotPasswordModal');
+}
+
+document.getElementById('forgotPasswordForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const msg = document.getElementById('forgotPasswordMsg');
+  msg.style.display = 'none';
+  try{
+    const res = await fetch(`${API_URL}/auth/forgot-password`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:document.getElementById('forgotPasswordEmail').value.trim()})
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.detail || 'Impossible de traiter la demande.');
+    msg.style.color = 'var(--s-green)';
+    msg.textContent = data.message || 'Si cette adresse correspond à un compte actif, un e-mail a été envoyé.';
+    msg.style.display = 'block';
+  }catch(err){
+    msg.style.color = 'var(--s-red)';
+    msg.textContent = err.message || 'Impossible de traiter la demande.';
+    msg.style.display = 'block';
+  }
+});
+
+document.getElementById('changePasswordForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const msg = document.getElementById('changePasswordMsg');
+  msg.style.display = 'none';
+  const currentPassword = document.getElementById('currentPassword').value;
+  const newPassword = document.getElementById('newPassword').value;
+  const confirmPassword = document.getElementById('confirmNewPassword').value;
+  if(newPassword !== confirmPassword){
+    msg.style.color = 'var(--s-red)'; msg.textContent = 'Les deux nouveaux mots de passe ne correspondent pas.'; msg.style.display='block'; return;
+  }
+  try{
+    const data = await apiPost('/auth/change-password', {current_password:currentPassword, new_password:newPassword});
+    if(data && data.message){
+      msg.style.color='var(--s-green)'; msg.textContent=data.message; msg.style.display='block';
+      document.getElementById('currentPassword').value='';
+      document.getElementById('newPassword').value='';
+      document.getElementById('confirmNewPassword').value='';
+    }
+  }catch(err){
+    msg.style.color='var(--s-red)'; msg.textContent=err.message || 'Impossible de modifier le mot de passe.'; msg.style.display='block';
+  }
+});
+
+document.getElementById('resetPasswordForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const msg = document.getElementById('resetPasswordMsg');
+  msg.style.display='none';
+  const newPassword = document.getElementById('resetPasswordNew').value;
+  const confirmPassword = document.getElementById('resetPasswordConfirm').value;
+  const token = new URLSearchParams(window.location.search).get('reset_token');
+  if(!token){ msg.style.color='var(--s-red)'; msg.textContent='Lien de réinitialisation invalide.'; msg.style.display='block'; return; }
+  if(newPassword !== confirmPassword){ msg.style.color='var(--s-red)'; msg.textContent='Les deux mots de passe ne correspondent pas.'; msg.style.display='block'; return; }
+  try{
+    const res = await fetch(`${API_URL}/auth/reset-password`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({token, new_password:newPassword})
+    });
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.detail || 'Lien invalide ou expiré.');
+    history.replaceState({}, '', location.pathname);
+    msg.style.color='var(--s-green)'; msg.textContent='Mot de passe réinitialisé. Connexion en cours…'; msg.style.display='block';
+    applyLoggedInUser(data.user, data.organization, data.access_token);
+    setTimeout(()=>closeModal('resetPasswordModal'), 900);
+  }catch(err){
+    msg.style.color='var(--s-red)'; msg.textContent=err.message || 'Impossible de réinitialiser le mot de passe.'; msg.style.display='block';
+  }
+});
+
+async function restoreSession(){
+  const saved = localStorage.getItem('orbitflow_auth_token');
+  if(!saved) return false;
+  authToken = saved;
+  try{
+    const res = await fetch(`${API_URL}/auth/me`, {headers:authHeaders()});
+    const data = await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(data.detail || 'Session expirée.');
+    applyLoggedInUser(data.user, data.organization, authToken);
+    return true;
+  }catch(err){
+    authToken = null;
+    localStorage.removeItem('orbitflow_auth_token');
+    return false;
+  }
+}
+
 /* ---------------- INIT ---------------- */
 document.addEventListener('DOMContentLoaded', async ()=>{
   checkInviteInUrl();
-  // La démonstration est disponible uniquement avant authentification.
-  // Les fonctions de chargement vérifient également authToken pour éviter
-  // toute course entre l'initialisation et la connexion.
-  demoMode = !authToken;
-  await loadDepartments();
-  await loadTasks();
+  const resetToken = new URLSearchParams(window.location.search).get('reset_token');
+  if(resetToken){
+    document.getElementById('onboardModal').style.display='none';
+    openModal('resetPasswordModal');
+  }
+  const restored = await restoreSession();
+  if(!restored){
+    demoMode = true;
+    await loadDepartments();
+    await loadTasks();
+  }
   setInterval(()=>computeAllStatuses(false), 60000); // vérifie les échéances chaque minute pendant que la page est ouverte
 });
 </script>
 </body>
 </html>
-
