@@ -731,8 +731,6 @@ def create_task(task: TaskCreate, current_user: UserDB = Depends(get_current_use
                      for d in task.deliverables if d.text and d.text.strip()]
     if not deliverables:
         raise HTTPException(status_code=400, detail="Ajoutez au moins un livrable.")
-    if not any(d["critical"] for d in deliverables):
-        raise HTTPException(status_code=400, detail="Au moins un livrable doit être marqué comme étape critique.")
     initial_status = "en_cours" if current_user.role in ("super_admin", "superviseur") else "en_attente"
     db_task = TaskDB(
         title=title, department_id=department.id,
