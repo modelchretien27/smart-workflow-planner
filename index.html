@@ -2377,11 +2377,9 @@ function renderNewTaskDeliverables(){
   const container = document.getElementById('newTaskDeliverables');
   if(newTaskDeliverablesState.length===0){ container.innerHTML=''; return; }
   container.innerHTML = `<div class="chip-list">${newTaskDeliverablesState.map((d,i)=>`
-    <span class="chip ${d.critical?'critical':''}">
-      <span class="star-toggle ${d.critical?'active':''}" onclick="toggleNewTaskDeliverableCritical(${i})" title="Marquer comme étape critique"><i class="fa-solid fa-star"></i></span>
+    <span class="chip">
       ${d.text}<span class="rm" onclick="removeNewTaskDeliverable(${i})"><i class="fa-solid fa-xmark"></i></span>
-    </span>`).join('')}</div>
-    <div class="hint">Coche l'étoile ⭐ pour marquer les étapes critiques — au moins une est obligatoire.</div>`;
+    </span>`).join('')}</div>`;
 }
 function addNewTaskDeliverable(){
   const input = document.getElementById('taskDeliverableInput');
@@ -2391,7 +2389,6 @@ function addNewTaskDeliverable(){
   input.value = '';
   renderNewTaskDeliverables();
 }
-function toggleNewTaskDeliverableCritical(i){ newTaskDeliverablesState[i].critical = !newTaskDeliverablesState[i].critical; renderNewTaskDeliverables(); }
 function removeNewTaskDeliverable(i){ newTaskDeliverablesState.splice(i,1); renderNewTaskDeliverables(); }
 
 document.getElementById('taskForm').addEventListener('submit', async (e)=>{
@@ -2399,10 +2396,6 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
   const title = document.getElementById('taskTitle').value;
   if(newTaskDeliverablesState.length===0){
     alert('Ajoute au moins un livrable attendu avant de planifier la tâche.');
-    return;
-  }
-  if(!newTaskDeliverablesState.some(d=>d.critical)){
-    alert("Choisis au moins une étape critique (étoile ⭐) parmi les livrables : c'est le jalon obligatoire de cette tâche.");
     return;
   }
   const deptSelect = document.getElementById('taskDept');
@@ -2420,32 +2413,27 @@ document.getElementById('taskForm').addEventListener('submit', async (e)=>{
   const deliverables = newTaskDeliverablesState.map(d=>({text:d.text, critical:d.critical, done:false}));
   const isSupervisorLike = currentUser.role === 'superviseur' || currentUser.role === 'super_admin';
 
-  let newTask;
-  try{
-    if(authToken && !demoMode){
-      // En production, une tâche n'est considérée comme créée que si
-      // l'API confirme son enregistrement. Aucun faux enregistrement local.
-      newTask = await apiPost('/tasks/', {
-        title, department_id, deliverables,
-        due_date: dueDate || null, assignee_name: assigneeName || null, assignee_email: assigneeEmail || null,
-      });
-    } else {
-      // Le repli local est réservé au véritable mode démo, sans compte connecté.
-      const items = deliverables.map(d=>({id:'tmp'+Math.random().toString(36).slice(2), text:d.text, critical:d.critical, done:false}));
-      newTask = {
-        id: Date.now(), title, department_id, deliverables: items, progress: 0,
-        due_date: dueDate || null, new_due_date: null, assignee_name: assigneeName, assignee_email: assigneeEmail,
-        validation_status: isSupervisorLike ? 'en_cours' : 'en_attente', delay_reason: '', needs_attention: false,
-        created_by_name: currentUser.name, created_by_email: currentUser.email, created_by_role: currentUser.role,
-        created_at: new Date().toISOString(),
-      };
-    }
-  }catch(err){
-    console.error("OrbitFlow: création de tâche refusée par l'API.", err);
-    alert("La tâche n'a pas été enregistrée. Le serveur a refusé ou n'a pas pu traiter la demande. Aucune donnée locale fictive n'a été créée.");
+  if(!authToken){
+    alert('Votre session n'est plus active. Reconnectez-vous avant de créer une tâche.');
     return;
   }
-  if(newTask && !tasksCache.find(t=>t.id===newTask.id)) tasksCache.push(newTask);
+
+  let newTask;
+  try{
+    // Une tâche réelle est toujours créée par l'API lorsque l'utilisateur est connecté.
+    // Aucun mode démo/local ne doit intercepter cette opération.
+    newTask = await apiPost('/tasks/', {
+      title, department_id, deliverables,
+      due_date: dueDate || null, assignee_name: assigneeName || null, assignee_email: assigneeEmail || null,
+    });
+  }catch(err){
+    console.error("OrbitFlow: création de tâche refusée par l'API.", err);
+    alert(`La tâche n'a pas été enregistrée. ${err.message || 'Le serveur n’a pas pu traiter la demande.'}`);
+    return;
+  }
+
+  // On recharge depuis le serveur : l'interface affiche uniquement ce qui est réellement persistant.
+  await loadTasks();
   ensureFlags(newTask.id);
 
   const orientationNote = newTask.validation_status === 'en_attente'
@@ -2760,3 +2748,4 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 </script>
 </body>
 </html>
+
